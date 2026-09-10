@@ -1,146 +1,92 @@
 #include "FaceIndexedMesh.h"
 
-#include <cmath>
-#include <functional>
+#include <fstream>
 #include <iomanip>
-#include <istream>
+#include <iostream>
 #include <limits>
-#include <locale>
-#include <ostream>
-#include <sstream>
+#include <map>
 #include <stdexcept>
-#include <unordered_map>
-
-namespace
-{
-struct VertexHash
-{
-    std::size_t operator()(const FaceIndexedMesh::Vertex &vertex) const
-    {
-        std::size_t result = 0;
-        for (std::size_t axis = 0; axis < vertex.size(); ++axis)
-        {
-            // std::hash<double> treats equal values, including +/-0, equally.
-            const std::size_t component = std::hash<double>()(vertex[axis]);
-            result ^= component + 0x9e3779b9U + (result << 6) + (result >> 2);
-        }
-        return result;
-    }
-};
-
-std::size_t ReadTriangleCount(std::istream &input)
-{
-    std::string token;
-    if (!(input >> token))
-        throw std::runtime_error("Missing triangle count.");
-
-    std::size_t count = 0;
-    const std::size_t maximum = std::numeric_limits<std::size_t>::max();
-    for (std::size_t i = 0; i < token.size(); ++i)
-    {
-        if (token[i] < '0' || token[i] > '9')
-            throw std::runtime_error("Triangle count must be a non-negative integer.");
-
-        const std::size_t digit = static_cast<std::size_t>(token[i] - '0');
-        if (count > (maximum - digit) / 10)
-            throw std::runtime_error("Triangle count is too large.");
-        count = count * 10 + digit;
-    }
-    return count;
-}
-
-bool ReadCoordinate(std::istream &input, double &coordinate)
-{
-    std::string token;
-    if (!(input >> token))
-        return false;
-
-    // A coordinate must occupy one complete whitespace-delimited token.
-    // Direct double extraction would incorrectly split "0-1" into two values.
-    std::istringstream number(token);
-    number.imbue(std::locale::classic());
-    return (number >> coordinate)
-        && number.peek() == std::char_traits<char>::eof()
-        && std::isfinite(coordinate);
-}
-}
 
 FaceIndexedMesh FaceIndexedMesh::ReadTriangleSoup(std::istream &input)
 {
     FaceIndexedMesh mesh;
-    const std::size_t triangleCount = ReadTriangleCount(input);
-    if (triangleCount > mesh.faces.max_size()
-        || triangleCount > mesh.vertices.max_size() / 3)
-        throw std::runtime_error("Triangle count exceeds the supported mesh size.");
+    long long triangleCount;
+    if (!(input >> triangleCount) || triangleCount < 0)
+        throw std::runtime_error("Cannot read triangle count.");
 
-    std::unordered_map<Vertex, std::size_t, VertexHash> vertexIds;
-    // Grow with actual input instead of allocating from an untrusted count.
-    for (std::size_t faceId = 0; faceId < triangleCount; ++faceId)
+    // The map finds shared coordinates; IDs follow first occurrence in the file.
+    std::map<Vertex, std::size_t> vertexIds;
+    for (long long f = 0; f < triangleCount; ++f)
     {
         Face face;
-        for (std::size_t corner = 0; corner < face.size(); ++corner)
+        for (std::size_t &index : face)
         {
             Vertex vertex;
-            for (std::size_t axis = 0; axis < vertex.size(); ++axis)
-            {
-                if (!ReadCoordinate(input, vertex[axis]))
-                    throw std::runtime_error(
-                        "Missing, invalid or non-finite coordinate at face "
-                        + std::to_string(faceId) + ", corner "
-                        + std::to_string(corner) + ", axis "
-                        + std::to_string(axis) + ".");
-            }
-
+            if (!(input >> vertex[0] >> vertex[1] >> vertex[2]))
+                throw std::runtime_error("Incomplete triangle coordinates.");
             const auto entry = vertexIds.emplace(vertex, mesh.vertices.size());
-            if (entry.second)
-                mesh.vertices.push_back(vertex);
-            face[corner] = entry.first->second;
+            if (entry.second) mesh.vertices.push_back(vertex);
+            index = entry.first->second;
         }
-        // Preserve both face order and winding; topology repair is a later task.
         mesh.faces.push_back(face);
     }
-
-    std::string extra;
-    if (input >> extra)
-        throw std::runtime_error("Unexpected data after the declared triangles.");
-    if (input.bad())
-        throw std::runtime_error("Failed while reading the input file.");
+    // Keep this check: the supplied hamish.tri has an incorrect face count.
+    input >> std::ws;
+    if (!input.eof())
+        throw std::runtime_error("Triangle count does not match the data.");
     return mesh;
 }
 
-void FaceIndexedMesh::WriteFace(std::ostream &output,
-                                const std::string &objectName) const
+void FaceIndexedMesh::WriteFace(std::ostream &output, const std::string &objectName) const
 {
-    std::string headerName = objectName;
-    for (std::size_t i = 0; i < headerName.size(); ++i)
-        if (headerName[i] == '\r' || headerName[i] == '\n')
-            headerName[i] = ' ';
+    output << "# University of Leeds 2024-25\n# COMP 5893M Assignment 1\n"
+           << "# Your Name Goes Here\n# Your Student Number Goes Here\n#\n"
+           << "# Object Name: " << objectName << '\n'
+           << "# Vertices=" << vertices.size() << " Faces=" << faces.size() << "\n#\n";
+    output << std::setprecision(std::numeric_limits<double>::max_digits10);
+    for (std::size_t i = 0; i < vertices.size(); ++i)
+        output << "Vertex " << i << ' ' << vertices[i][0] << ' '
+               << vertices[i][1] << ' ' << vertices[i][2] << '\n';
+    for (std::size_t i = 0; i < faces.size(); ++i)
+        output << "Face " << i << ' ' << faces[i][0] << ' '
+               << faces[i][1] << ' ' << faces[i][2] << '\n';
+}
 
-    // Replace the two identity placeholders with your submission details.
-    output << "# University of Leeds 2024-25\n"
-           << "# COMP 5893M Assignment 1\n"
-           << "# Your Name Goes Here\n"
-           << "# Your Student Number Goes Here\n"
-           << "#\n"
-           << "# Object Name: " << headerName << '\n'
-           << "# Vertices=" << vertices.size() << " Faces=" << faces.size()
-           << "\n#\n";
+int main(int argc, char **argv)
+{
+    const bool help = argc == 2 && (std::string(argv[1]) == "--help"
+                                    || std::string(argv[1]) == "-h");
+    if (help || argc < 2 || argc > 3)
+    {
+        (help ? std::cout : std::cerr) << "Usage: face2faceindex input.tri [output.face]\n";
+        return help ? 0 : 1;
+    }
+    try
+    {
+        std::string stem = argv[1];
+        const std::size_t slash = stem.find_last_of("/\\");
+        const std::size_t start = slash == std::string::npos ? 0 : slash + 1;
+        const std::size_t dot = stem.find_last_of('.');
+        if (dot != std::string::npos && dot > start) stem.resize(dot);
+        const std::string outputPath = argc == 3 ? argv[2] : stem + ".face";
 
-    // Enough significant digits to recover the same double on the next read.
-    output << std::defaultfloat
-           << std::setprecision(std::numeric_limits<double>::max_digits10);
-    for (std::size_t vertexId = 0; vertexId < vertices.size(); ++vertexId)
-    {
-        const Vertex &vertex = vertices[vertexId];
-        output << "Vertex " << vertexId << ' ' << vertex[0] << ' '
-               << vertex[1] << ' ' << vertex[2] << '\n';
+        std::ifstream input(argv[1]);
+        if (!input) throw std::runtime_error("Cannot open input file.");
+        const FaceIndexedMesh mesh = FaceIndexedMesh::ReadTriangleSoup(input);
+        if (std::ifstream(outputPath.c_str()))
+            throw std::runtime_error("Output file already exists; choose a new path.");
+        std::ofstream output(outputPath.c_str());
+        if (!output) throw std::runtime_error("Cannot open output file.");
+        mesh.WriteFace(output, stem.substr(start));
+        output.close();
+        if (!output) throw std::runtime_error("Cannot finish writing output file.");
+        std::cout << "Wrote " << outputPath << " (" << mesh.VertexCount()
+                  << " vertices, " << mesh.FaceCount() << " faces).\n";
+        return 0;
     }
-    for (std::size_t faceId = 0; faceId < faces.size(); ++faceId)
+    catch (const std::exception &error)
     {
-        const Face &face = faces[faceId];
-        output << "Face " << faceId << ' ' << face[0] << ' '
-               << face[1] << ' ' << face[2] << '\n';
+        std::cerr << "face2faceindex: " << error.what() << '\n';
+        return 1;
     }
-    if (!output)
-        throw std::runtime_error("Failed while writing the face file.");
 }

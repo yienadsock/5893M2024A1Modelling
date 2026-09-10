@@ -16,7 +16,7 @@ public:
 
     // Throws std::runtime_error if the triangle soup is malformed.
     static FaceIndexedMesh ReadTriangleSoup(std::istream &input);
-    // Implemented by Task I(b)'s FaceFileReader.cpp; preserves existing indices.
+    // Implemented in DirectedEdgeMesh.cpp; reads the .face produced by step (a).
     static FaceIndexedMesh ReadFace(std::istream &input);
     void WriteFace(std::ostream &output, const std::string &objectName) const;
 
