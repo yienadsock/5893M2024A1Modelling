@@ -13,8 +13,6 @@ public:
 
     void WriteDirectedEdge(std::ostream &output) const;
     void WriteDiagnostics(std::ostream &output) const;
-    // Task II implementation is kept in mesh_processing/MeshProcessing.cpp.
-    bool IsManifold() const;
 
     std::size_t VertexCount() const { return mesh.VertexCount(); }
     std::size_t FaceCount() const { return mesh.FaceCount(); }
@@ -23,6 +21,9 @@ public:
     { return std::count(otherHalves.begin(), otherHalves.end(), -1); }
 
 private:
+    // Tasks II and III analyse this connectivity in mesh_test/MeshAnalysis.cpp.
+    friend class MeshAnalysis;
+
     typedef std::ptrdiff_t EdgeId;
     typedef std::array<std::size_t, 2> EdgeKey;
 

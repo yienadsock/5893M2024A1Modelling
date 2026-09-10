@@ -1,3 +1,5 @@
+Windows build instructions
+--------------------------
 cd ..\converter
 qmake -project "CONFIG += console c++11" "CONFIG -= app_bundle qt"
 qmake
@@ -5,7 +7,7 @@ mingw32-make
 .\release\converter.exe tri2face ..\handout_models\tetrahedron.tri
 .\release\converter.exe face2diredge ..\handout_models\tetrahedron.face
 
-cd ..\mesh_processing
+cd ..\mesh_test
 qmake -project -o manifoldtest.pro "CONFIG += console c++11" "CONFIG -= app_bundle qt"
 qmake manifoldtest.pro
 mingw32-make

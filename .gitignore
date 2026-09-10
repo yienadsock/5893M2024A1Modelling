@@ -9,9 +9,14 @@ converter/Makefile.Release
 converter/converter.pro
 
 # mesh test
-/mesh_processing/debug/
-/mesh_processing/release/
-mesh_processing/manifold test results.txt
+/mesh_test/debug/
+/mesh_test/release/
+mesh_test/.qmake.stash
+mesh_test/Makefile
+mesh_test/Makefile.Debug
+mesh_test/Makefile.Release
+mesh_test/mesh_test.pro
+mesh_test/manifold test results.txt
 # renderer
 /triangle_renderer/debug/
 /triangle_renderer/release/
