@@ -117,6 +117,7 @@ void DirectedEdgeMesh::WriteDiagnostics(std::ostream &output) const
                << " unpaired directed edges, " << isolated << " isolated vertices.\n";
 }
 
+#ifndef TASK1_LIBRARY
 int main(int argc, char **argv)
 {
     const bool help = argc == 2 && (std::string(argv[1]) == "--help"
@@ -159,3 +160,4 @@ int main(int argc, char **argv)
         return 1;
     }
 }
+#endif

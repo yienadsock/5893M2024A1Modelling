@@ -1,5 +1,7 @@
 # Build products for the Task I command-line converter.
 /face2faceindex/build/
-/tests/__pycache__/
+/tests
 /faceindex2directededge/build/
 /triangle_renderer/build/
+/mesh_processing/build/
+mesh_processing/manifold test results.txt

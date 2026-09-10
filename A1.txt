@@ -19,10 +19,8 @@ All code submitted must compile with the stages of compilation in the
 readme.txt file accompanying the code handout, at the first attempt, on the
 University’s Red Hat lab machines. Students will normally be given exactly
 one chance to fix compilation issues, but this is not guaranteed.
-All code submitted must be written by the student themselves, with no
-outside assistance of any kind, unless written approval is obtained from the
 1
-instructor in advance. Students are permitted to use the code handed out,
+Students are permitted to use the code handed out,
 and the following libraries: OpenGL, OpenMP, Qt and the C++ STL.
 Students are expected to apply professional coding standards, including mean
 ingful variable names, well-structured OO classes, and meaningful comments.

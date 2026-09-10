@@ -52,6 +52,7 @@ void FaceIndexedMesh::WriteFace(std::ostream &output, const std::string &objectN
                << faces[i][1] << ' ' << faces[i][2] << '\n';
 }
 
+#ifndef TASK1_LIBRARY
 int main(int argc, char **argv)
 {
     const bool help = argc == 2 && (std::string(argv[1]) == "--help"
@@ -90,3 +91,4 @@ int main(int argc, char **argv)
         return 1;
     }
 }
+#endif

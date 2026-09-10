@@ -13,6 +13,8 @@ public:
 
     void WriteDirectedEdge(std::ostream &output) const;
     void WriteDiagnostics(std::ostream &output) const;
+    // Task II implementation is kept in mesh_processing/MeshProcessing.cpp.
+    bool IsManifold() const;
 
     std::size_t VertexCount() const { return mesh.VertexCount(); }
     std::size_t FaceCount() const { return mesh.FaceCount(); }
