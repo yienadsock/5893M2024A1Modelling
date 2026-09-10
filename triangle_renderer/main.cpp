@@ -24,10 +24,10 @@ int main(int argc, char **argv)
 	// check the args to make sure there's an input file
 	if (argc == 2)
 		{ // two parameters - read a file
-		if (!surface.ReadFileTriangleSoup(argv[1]))
+		if (!surface.ReadFile(argv[1]))
 			{ // surface read failed 
 			printf("Read failed for file %s\n", argv[1]);
-			exit(0);
+			exit(1);
 			} // surface read failed
 		else
 			{ // surface read succeeded
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 		} // two parameters - read a file
 	else 
 		{ // too many parameters 
-		printf("Usage: %s filename\n", argv[0]); 
+		printf("Usage: %s filename.tri|filename.face|filename.diredge\n", argv[0]); 
 		exit (0);
 		} // too many parameters 
 

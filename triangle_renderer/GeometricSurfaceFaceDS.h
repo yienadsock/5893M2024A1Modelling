@@ -39,10 +39,15 @@ class GeometricSurfaceFaceDS
 	GeometricSurfaceFaceDS();
 	
 	// read routine returns true on success, failure otherwise
+	bool ReadFile(char *fileName);
 	bool ReadFileTriangleSoup(char *fileName);
 	
 	// routine to render
 	void Render();
+
+	private:
+	bool ReadFileIndexed(char *fileName);
+	void PrepareForViewing();
 	}; // class GeometricSurfaceFaceDS
 
 #endif

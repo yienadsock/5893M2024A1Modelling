@@ -1,0 +1,10 @@
+TEMPLATE = app
+TARGET = triangle_renderer
+CONFIG += console c++11
+QT += core gui widgets opengl
+greaterThan(QT_MAJOR_VERSION, 5): QT += openglwidgets
+win32: LIBS += -lopengl32 -lglu32
+unix:!macx: LIBS += -lGL -lGLU
+macx: LIBS += -framework OpenGL
+SOURCES += main.cpp GeometricSurfaceFaceDS.cpp GeometricWidget.cpp Cartesian3.cpp Ball.cpp BallAux.cpp BallMath.cpp
+HEADERS += GeometricSurfaceFaceDS.h GeometricWidget.h Cartesian3.h Ball.h BallAux.h BallMath.h
