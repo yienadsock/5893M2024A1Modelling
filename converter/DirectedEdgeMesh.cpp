@@ -111,7 +111,7 @@ void DirectedEdgeMesh::WriteDiagnostics(std::ostream &output) const
 {
     const auto isolated = std::count(firstDirectedEdges.begin(), firstDirectedEdges.end(), -1);
     if (UnpairedEdgeCount() || isolated)
-        output << "faceindex2directededge: warning: " << UnpairedEdgeCount()
+        output << "converter: warning: " << UnpairedEdgeCount()
                << " unpaired directed edges, " << isolated << " isolated vertices.\n";
 }
 

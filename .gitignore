@@ -1,14 +1,26 @@
-# Build products for the Task I command-line converter.
-/face2faceindex/build/
-/faceindex2directededge/build/
-/triangle_renderer/build/
-/mesh_processing/build/
+# Build products for converter.
+# converter
+/converter/debug/
+/converter/release/
+converter/.qmake.stash
+converter/Makefile
+converter/Makefile.Debug
+converter/Makefile.Release
+converter/converter.pro
+
+# mesh test
+/mesh_processing/debug/
+/mesh_processing/release/
 mesh_processing/manifold test results.txt
-A1.txt
-appendix.txt
+# renderer
+/triangle_renderer/debug/
+/triangle_renderer/release/
 triangle_renderer/.qmake.stash
 triangle_renderer/Makefile
 triangle_renderer/Makefile.Debug
 triangle_renderer/Makefile.Release
-triangle_renderer/debug/
-triangle_renderer/release/
+triangle_renderer/triangle_renderer.pro
+
+# others
+A1.txt
+appendix.txt

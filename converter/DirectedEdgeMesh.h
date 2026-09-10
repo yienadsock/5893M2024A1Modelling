@@ -1,7 +1,7 @@
 #ifndef DIRECTED_EDGE_MESH_H
 #define DIRECTED_EDGE_MESH_H
 
-#include "../face2faceindex/FaceIndexedMesh.h"
+#include "FaceIndexedMesh.h"
 
 #include <algorithm>
 
