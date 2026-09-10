@@ -1,10 +1,4 @@
 # Build products for the Task I command-line converter.
 /face2faceindex/build/
-/face2faceindex/debug/
-/face2faceindex/release/
-/face2faceindex/face2faceindex
-/face2faceindex/face2faceindex.exe
-/face2faceindex/*.o
-/face2faceindex/Makefile*
-/face2faceindex/.qmake.stash
 /tests/__pycache__/
+/faceindex2directededge/build/
