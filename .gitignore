@@ -1,6 +1,5 @@
 # Build products for the Task I command-line converter.
 /face2faceindex/build/
-/tests
 /faceindex2directededge/build/
 /triangle_renderer/build/
 /mesh_processing/build/
