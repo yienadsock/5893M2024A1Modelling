@@ -21,8 +21,10 @@ public:
     { return std::count(otherHalves.begin(), otherHalves.end(), -1); }
 
 private:
-    // Tasks II and III analyse this connectivity in mesh_test/MeshAnalysis.cpp.
+    // Tasks II and III analyse this connectivity in mesh_analysis/MeshAnalysis.cpp.
     friend class MeshAnalysis;
+    // Task IV walks the hole boundary loops in mesh_edit/HoleFilling.cpp.
+    friend class HoleFilling;
 
     typedef std::ptrdiff_t EdgeId;
     typedef std::array<std::size_t, 2> EdgeKey;

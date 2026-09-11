@@ -15,8 +15,17 @@
 /mesh_analysis/Makefile
 /mesh_analysis/Makefile.Debug
 /mesh_analysis/Makefile.Release
-/mesh_analysis/mesh_test.pro
+/mesh_analysis/mesh_analysis.pro
 /mesh_analysis/manifold test results.txt
+
+# mesh edit
+/mesh_edit/debug/
+/mesh_edit/release/
+/mesh_edit/.qmake.stash
+/mesh_edit/Makefile
+/mesh_edit/Makefile.Debug
+/mesh_edit/Makefile.Release
+/mesh_edit/mesh_edit.pro
 
 # renderer
 /triangle_renderer/debug/

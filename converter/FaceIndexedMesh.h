@@ -27,6 +27,9 @@ public:
     const std::vector<std::string> &HeaderLines() const { return headerLines; }
 
 private:
+    // mesh_edit/HoleFilling.cpp appends the new centre vertices and fans.
+    friend class HoleFilling;
+
     std::vector<Vertex> vertices;
     std::vector<Face> faces;
     std::vector<std::string> headerLines;
