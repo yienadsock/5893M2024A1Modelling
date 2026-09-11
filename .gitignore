@@ -2,39 +2,53 @@
 # converter
 /converter/debug/
 /converter/release/
+/converter/build/
 /converter/.qmake.stash
 /converter/Makefile
 /converter/Makefile.Debug
 /converter/Makefile.Release
 /converter/converter.pro
+/converter/converter
+/converter/*.o
 
 # mesh analysis
 /mesh_analysis/debug/
 /mesh_analysis/release/
+/mesh_analysis/build/
 /mesh_analysis/.qmake.stash
 /mesh_analysis/Makefile
 /mesh_analysis/Makefile.Debug
 /mesh_analysis/Makefile.Release
 /mesh_analysis/mesh_analysis.pro
+/mesh_analysis/mesh_analysis
+/mesh_analysis/*.o
 /mesh_analysis/manifold test results.txt
 
 # mesh edit
 /mesh_edit/debug/
 /mesh_edit/release/
+/mesh_edit/build/
 /mesh_edit/.qmake.stash
 /mesh_edit/Makefile
 /mesh_edit/Makefile.Debug
 /mesh_edit/Makefile.Release
 /mesh_edit/mesh_edit.pro
+/mesh_edit/mesh_edit
+/mesh_edit/*.o
 
 # renderer
 /triangle_renderer/debug/
 /triangle_renderer/release/
+/triangle_renderer/build/
 /triangle_renderer/.qmake.stash
 /triangle_renderer/Makefile
 /triangle_renderer/Makefile.Debug
 /triangle_renderer/Makefile.Release
 /triangle_renderer/triangle_renderer.pro
+/triangle_renderer/triangle_renderer
+/triangle_renderer/*.o
+/triangle_renderer/moc_*.cpp
+/triangle_renderer/moc_predefs.h
 
 # others
 .vscode
