@@ -1,8 +1,10 @@
 #include "FaceIndexedMesh.h"
 
 #include <iomanip>
+#include <istream>
 #include <limits>
 #include <map>
+#include <ostream>
 #include <stdexcept>
 
 FaceIndexedMesh FaceIndexedMesh::ReadTriangleSoup(std::istream &input)

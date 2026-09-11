@@ -23,8 +23,8 @@ public:
 private:
     // Tasks II and III analyse this connectivity in mesh_analysis/MeshAnalysis.cpp.
     friend class MeshAnalysis;
-    // Task IV walks the hole boundary loops in mesh_edit/HoleFilling.cpp.
-    friend class HoleFilling;
+    // Task IV walks the hole boundary loops in mesh_edit/MeshRepair.cpp.
+    friend class MeshRepair;
 
     typedef std::ptrdiff_t EdgeId;
     typedef std::array<std::size_t, 2> EdgeKey;

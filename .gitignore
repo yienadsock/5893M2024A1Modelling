@@ -1,4 +1,4 @@
-# Build products for converter.
+# Build products
 # converter
 /converter/debug/
 /converter/release/
@@ -37,5 +37,6 @@
 /triangle_renderer/triangle_renderer.pro
 
 # others
+.vscode
 A1.txt
 appendix.txt

@@ -2,6 +2,7 @@
 
 #include <iomanip>
 #include <limits>
+#include <ostream>
 
 void WriteTriangleSoup(std::ostream &output, const FaceIndexedMesh &mesh)
 {

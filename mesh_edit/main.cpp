@@ -1,8 +1,10 @@
 #include "../converter/DirectedEdgeMesh.h"
-#include "HoleFilling.h"
+#include "MeshRepair.h"
+#include "MeshSimplifier.h"
 #include "TriangleSoupWriter.h"
 
 #include <cctype>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -15,8 +17,10 @@ namespace
 void Usage(std::ostream &output)
 {
     output << "Usage: mesh_edit repair input.tri|input.face|input.diredge [output]\n"
-              "Closes every hole with a fan at the boundary centre of gravity and\n"
-              "writes the repaired mesh to a new file in the input format.\n";
+              "       mesh_edit simplify input.tri|input.face|input.diredge [output] [ratio]\n"
+              "repair closes every hole with a fan at its centre of gravity; simplify\n"
+              "removes the flattest vertices until the keep ratio (default 0.5) is\n"
+              "reached. Both write a new file in the input format.\n";
 }
 
 std::string Extension(const std::string &path)
@@ -41,13 +45,22 @@ std::string FileStem(const std::string &path)
 }
 
 // Keeps the input extension so the original file is never overwritten.
-std::string DefaultOutput(const std::string &path)
+std::string DefaultOutput(const std::string &path, const std::string &suffix)
 {
     const std::size_t dot = path.find_last_of('.');
     const std::size_t slash = path.find_last_of("/\\");
     if (dot == std::string::npos || (slash != std::string::npos && dot < slash))
-        return path + "_fixed";
-    return path.substr(0, dot) + "_fixed" + path.substr(dot);
+        return path + suffix;
+    return path.substr(0, dot) + suffix + path.substr(dot);
+}
+
+// Reports boundary edges that survive an edit; the input is expected closed.
+void WarnIfOpen(const FaceIndexedMesh &mesh)
+{
+    const DirectedEdgeMesh check(mesh);
+    if (check.UnpairedEdgeCount() != 0)
+        std::cerr << "mesh_edit: warning: " << check.UnpairedEdgeCount()
+                  << " unpaired edges remain\n";
 }
 
 FaceIndexedMesh ReadMesh(const std::string &path)
@@ -95,14 +108,33 @@ int main(int argc, char **argv)
         Usage(std::cout);
         return 0;
     }
-    if (argc < 3 || argc > 4 || std::string(argv[1]) != "repair")
+    if (argc < 3 || argc > 5
+        || (std::string(argv[1]) != "repair" && std::string(argv[1]) != "simplify"))
     {
         Usage(std::cerr);
         return 1;
     }
 
+    const std::string mode = argv[1];
+    const bool repair = mode == "repair";
+    if (repair && argc > 4)
+    {
+        Usage(std::cerr);
+        return 1;
+    }
     const std::string inputPath = argv[2];
-    const std::string outputPath = argc == 4 ? argv[3] : DefaultOutput(inputPath);
+    const std::string outputPath = argc >= 4 ? argv[3]
+        : DefaultOutput(inputPath, repair ? "_fixed" : "_simplified");
+    double keepRatio = 0.5;
+    if (!repair && argc == 5)
+    {
+        keepRatio = std::strtod(argv[4], 0);
+        if (keepRatio <= 0.0 || keepRatio > 1.0)
+        {
+            std::cerr << "mesh_edit: the ratio must be between 0 and 1\n";
+            return 1;
+        }
+    }
     if (outputPath == inputPath)
     {
         std::cerr << "mesh_edit: the output must differ from the input file\n";
@@ -112,23 +144,28 @@ int main(int argc, char **argv)
     try
     {
         const FaceIndexedMesh mesh = ReadMesh(inputPath);
-        const HoleFilling repair(mesh);
-
-        // The handout guarantees that only holes need repair, but report any
-        // boundary edges that survive so a second repair can be attempted.
-        const DirectedEdgeMesh check(repair.Mesh());
-        if (check.UnpairedEdgeCount() != 0)
-            std::cerr << "mesh_edit: warning: " << check.UnpairedEdgeCount()
-                      << " unpaired edges remain\n";
-
-        WriteMesh(repair.Mesh(), outputPath, FileStem(inputPath), Extension(inputPath));
-        std::cout << "Filled " << repair.HoleCount() << " hole(s)";
-        if (repair.SkippedLoopCount() != 0)
-            std::cout << ", skipped " << repair.SkippedLoopCount()
-                      << " non-simple boundary loop(s)";
-        std::cout << "; wrote " << outputPath
-                  << " (" << repair.Mesh().VertexCount() << " vertices, "
-                  << repair.Mesh().FaceCount() << " faces).\n";
+        if (repair)
+        {
+            const MeshRepair repair(mesh);
+            WarnIfOpen(repair.Mesh());
+            WriteMesh(repair.Mesh(), outputPath, FileStem(inputPath), Extension(inputPath));
+            std::cout << "Removed " << repair.RemovedFaceCount()
+                      << " face(s); filled " << repair.HoleCount() << " hole(s)";
+            std::cout << "; wrote " << outputPath
+                      << " (" << repair.Mesh().VertexCount() << " vertices, "
+                      << repair.Mesh().FaceCount() << " faces).\n";
+        }
+        else
+        {
+            const MeshSimplifier simplify(mesh, keepRatio);
+            WarnIfOpen(simplify.Mesh());
+            WriteMesh(simplify.Mesh(), outputPath, FileStem(inputPath), Extension(inputPath));
+            std::cout << "Simplified from " << mesh.VertexCount() << "/"
+                      << mesh.FaceCount() << " to " << simplify.Mesh().VertexCount()
+                      << "/" << simplify.Mesh().FaceCount()
+                      << " vertices/faces (removed " << simplify.RemovedVertexCount()
+                      << " vertices); wrote " << outputPath << '\n';
+        }
         return 0;
     }
     catch (const std::exception &error)
