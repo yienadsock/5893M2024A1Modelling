@@ -2,29 +2,30 @@
 # converter
 /converter/debug/
 /converter/release/
-converter/.qmake.stash
-converter/Makefile
-converter/Makefile.Debug
-converter/Makefile.Release
-converter/converter.pro
+/converter/.qmake.stash
+/converter/Makefile
+/converter/Makefile.Debug
+/converter/Makefile.Release
+/converter/converter.pro
 
-# mesh test
-/mesh_test/debug/
-/mesh_test/release/
-mesh_test/.qmake.stash
-mesh_test/Makefile
-mesh_test/Makefile.Debug
-mesh_test/Makefile.Release
-mesh_test/mesh_test.pro
-mesh_test/manifold test results.txt
+# mesh analysis
+/mesh_analysis/debug/
+/mesh_analysis/release/
+/mesh_analysis/.qmake.stash
+/mesh_analysis/Makefile
+/mesh_analysis/Makefile.Debug
+/mesh_analysis/Makefile.Release
+/mesh_analysis/mesh_test.pro
+/mesh_analysis/manifold test results.txt
+
 # renderer
 /triangle_renderer/debug/
 /triangle_renderer/release/
-triangle_renderer/.qmake.stash
-triangle_renderer/Makefile
-triangle_renderer/Makefile.Debug
-triangle_renderer/Makefile.Release
-triangle_renderer/triangle_renderer.pro
+/triangle_renderer/.qmake.stash
+/triangle_renderer/Makefile
+/triangle_renderer/Makefile.Debug
+/triangle_renderer/Makefile.Release
+/triangle_renderer/triangle_renderer.pro
 
 # others
 A1.txt
