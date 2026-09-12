@@ -1,28 +1,36 @@
-Windows build instructions
+Building instructions & Usage
 --------------------------
-cd ..\converter
+
+University Linux: run these commands in order, starting from the repository root.
+
+For Task 1
+
+cd converter
 qmake -project "CONFIG += console c++11" "CONFIG -= app_bundle qt"
 qmake
-mingw32-make
-.\release\converter.exe tri2face ..\handout_models\tetrahedron.tri
-.\release\converter.exe face2diredge ..\handout_models\tetrahedron.face
+make
 
-cd ..\mesh_analysis
-qmake -project "CONFIG += console c++11" "CONFIG -= app_bundle qt"
+./converter tri2face ../handout_models/tetrahedron.tri
+./converter face2diredge ../handout_models/tetrahedron.face
+
+For Task 2~3
+
+cd ../mesh_analysis
+qmake -project "CONFIG += console c++11" "CONFIG -= app_bundle qt" "SOURCES += ../converter/FaceIndexedMesh.cpp ../converter/DirectedEdgeMesh.cpp"
 qmake
-mingw32-make
-.\release\mesh_analysis.exe ..\handout_models
+make
 
-cd ..\mesh_edit
-qmake -project "CONFIG += console c++11" "CONFIG -= app_bundle qt"
+./mesh_analysis ../handout_models
+
+For Task 4~5
+
+cd ../mesh_edit
+qmake -project "CONFIG += console c++11" "CONFIG -= app_bundle qt" "SOURCES += ../converter/FaceIndexedMesh.cpp ../converter/DirectedEdgeMesh.cpp"
 qmake
-mingw32-make
-.\release\mesh_edit.exe repair ..\handout_models\hamish.tri
-.\release\mesh_edit.exe simplify ..\handout_models\hamish_fixed.tri
+make
 
+./mesh_edit repair ../handout_models/hamish.tri
+./mesh_edit simplify ../handout_models/hamish_fixed.tri
 
-cd ..\triangle_renderer
-qmake -project "QT += core gui widgets opengl openglwidgets" "LIBS += -lopengl32 -lglu32"
-qmake
-mingw32-make
-.\release\triangle_renderer.exe ..\handout_models\cube.tri
+The analysis report is saved as mesh_analysis/manifold test results.txt.
+Converted and edited models are saved beside the input; choose a new output path if a file already exists.
