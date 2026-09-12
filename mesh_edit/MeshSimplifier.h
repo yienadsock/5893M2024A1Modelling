@@ -1,5 +1,4 @@
-#ifndef MESH_SIMPLIFIER_H
-#define MESH_SIMPLIFIER_H
+#pragma once
 
 #include "../converter/FaceIndexedMesh.h"
 
@@ -8,36 +7,34 @@
 #include <utility>
 #include <vector>
 
-// Task V: greedy vertex decimation by Gaussian curvature, preserving V - E + F.
+// task V: greedy vertex decimation by Gaussian curvature, keeping V - E + F
 class MeshSimplifier
 {
 public:
-    explicit MeshSimplifier(const FaceIndexedMesh &mesh, double keepRatio = 0.5);
+    explicit MeshSimplifier(const FaceIndexedMesh &mesh, double keep = 0.5);
 
-    std::size_t RemovedVertexCount() const { return removedVertices; }
-    const FaceIndexedMesh &Mesh() const { return simplified; }
+    std::size_t gone() const { return deadVerts; }
+    const FaceIndexedMesh &mesh() const { return thin; }
 
 private:
     typedef std::pair<std::size_t, std::size_t> Edge;
 
-    double FaceArea(std::size_t face) const;
-    double Angle(std::size_t vertex, const FaceIndexedMesh::Face &face) const;
-    double Cotangent(std::size_t at, std::size_t first, std::size_t second) const;
-    // The 1-ring neighbours of an interior vertex, in face order.
-    std::vector<std::size_t> Ring(std::size_t vertex) const;
-    // Mean and Gaussian curvature from the current incident faces.
-    void UpdateCurvature(std::size_t vertex);
-    // Removes a vertex, returning the old 1-ring so the caller refreshes it.
-    bool TryRemove(std::size_t vertex, std::vector<std::size_t> &ring);
+    double triArea(std::size_t f) const;
+    double angleAt(std::size_t v, const FaceIndexedMesh::Face &tri) const;
+    double cotan(std::size_t at, std::size_t a, std::size_t b) const;
+    // the 1-ring neighbours of an interior vertex, in face order
+    std::vector<std::size_t> ringOf(std::size_t v) const;
+    // fills in K and H from the faces currently around the vertex
+    void curvature(std::size_t v);
+    // removes a vertex; reports its old ring so the caller can refresh
+    bool chop(std::size_t v, std::vector<std::size_t> &ring);
 
-    FaceIndexedMesh simplified;
-    std::vector<char> aliveFace;
-    std::vector<char> aliveVertex;
+    FaceIndexedMesh thin;
+    std::vector<char> liveFace;
+    std::vector<char> liveVert;
     std::map<Edge, std::pair<std::size_t, std::size_t> > edgeFaces;
-    std::vector<std::vector<std::size_t> > incident;
-    std::vector<double> gaussian;
-    std::vector<double> mean;
-    std::size_t removedVertices;
+    std::vector<std::vector<std::size_t> > around;
+    std::vector<double> K;
+    std::vector<double> H;
+    std::size_t deadVerts;
 };
-
-#endif

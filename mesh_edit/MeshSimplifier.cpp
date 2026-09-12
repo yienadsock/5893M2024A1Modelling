@@ -9,386 +9,366 @@
 #include <string>
 #include <vector>
 
+using namespace std;
+
 namespace
 {
 
-const double kPi = 3.14159265358979323846;
-const std::size_t kNoFace = static_cast<std::size_t>(-1);
+const double PI = 3.14159265358979323846;
+const size_t NONE = static_cast<size_t>(-1);
 
-typedef std::pair<std::size_t, std::size_t> Edge;
+typedef pair<size_t, size_t> Edge;
 
-Edge MakeEdge(std::size_t first, std::size_t second)
-{
-    return first < second ? Edge(first, second) : Edge(second, first);
-}
+Edge key(size_t a, size_t b) { return a < b ? Edge(a, b) : Edge(b, a); }
 
-struct Candidate
+struct Cand
 {
     double cost;       // |K|, smallest first
-    std::size_t vertex;
-    std::size_t version;
+    size_t vertex;
+    size_t version;
 };
 
 struct ByCost
 {
-    bool operator()(const Candidate &first, const Candidate &second) const
-    {
-        return first.cost > second.cost;
-    }
+    bool operator()(const Cand &a, const Cand &b) const { return a.cost > b.cost; }
 };
 
 } // namespace
 
-MeshSimplifier::MeshSimplifier(const FaceIndexedMesh &mesh, double keepRatio)
-    : simplified(mesh),
-      aliveFace(mesh.FaceCount(), 1),
-      aliveVertex(mesh.VertexCount(), 1),
-      gaussian(mesh.VertexCount(), 0.0),
-      mean(mesh.VertexCount(), 0.0),
-      removedVertices(0)
+MeshSimplifier::MeshSimplifier(const FaceIndexedMesh &mesh, double keep)
+    : thin(mesh),
+      liveFace(mesh.FaceCount(), 1),
+      liveVert(mesh.VertexCount(), 1),
+      K(mesh.VertexCount(), 0.0),
+      H(mesh.VertexCount(), 0.0),
+      deadVerts(0)
 {
-    if (simplified.FaceCount() == 0) return;
-    const std::size_t targetVertices = std::max<std::size_t>(
-        4, static_cast<std::size_t>(std::ceil(mesh.VertexCount() * keepRatio)));
+    if (thin.FaceCount() == 0) return;
+    const size_t target = max<size_t>(
+        4, static_cast<size_t>(ceil(mesh.VertexCount() * keep)));
 
-    // Edge-face adjacency and per-vertex incident faces, for a closed manifold.
-    incident.assign(simplified.VertexCount(), std::vector<std::size_t>());
-    for (std::size_t face = 0; face < simplified.FaceCount(); ++face)
+    // edges -> the (at most two) faces on them, plus the faces around a vertex
+    around.assign(thin.VertexCount(), vector<size_t>());
+    for (size_t f = 0; f < thin.FaceCount(); ++f)
     {
-        const FaceIndexedMesh::Face &corners = simplified.faces[face];
-        for (std::size_t corner = 0; corner < 3; ++corner)
+        const FaceIndexedMesh::Face &t = thin.faces[f];
+        for (size_t k = 0; k < 3; ++k)
         {
-            const std::size_t first = corners[corner];
-            const std::size_t second = corners[(corner + 1) % 3];
-            incident[first].push_back(face);
-            std::map<Edge, std::pair<std::size_t, std::size_t> >::iterator entry =
-                edgeFaces.find(MakeEdge(first, second));
+            const size_t a = t[k], b = t[(k + 1) % 3];
+            around[a].push_back(f);
+            auto entry = edgeFaces.find(key(a, b));
             if (entry == edgeFaces.end())
-                edgeFaces.insert(std::make_pair(MakeEdge(first, second),
-                                                std::make_pair(face, kNoFace)));
-            else if (entry->second.second == kNoFace)
-                entry->second.second = face;
+                edgeFaces.insert(make_pair(key(a, b), make_pair(f, NONE)));
+            else if (entry->second.second == NONE)
+                entry->second.second = f;
             else
-                throw std::runtime_error("simplification needs a manifold input");
+                throw runtime_error("simplification needs a manifold input");
         }
     }
 
-    // Initial curvatures, then the greedy queue ordered by |K|.
-    for (std::size_t vertex = 0; vertex < simplified.VertexCount(); ++vertex)
-        UpdateCurvature(vertex);
+    // initial curvatures, then a greedy queue keyed on |K|
+    for (size_t v = 0; v < thin.VertexCount(); ++v) curvature(v);
 
-    std::vector<std::size_t> version(simplified.VertexCount(), 0);
-    std::vector<char> blocked(simplified.VertexCount(), 0);
-    std::priority_queue<Candidate, std::vector<Candidate>, ByCost> queue;
-    for (std::size_t vertex = 0; vertex < simplified.VertexCount(); ++vertex)
-        queue.push(Candidate{std::fabs(gaussian[vertex]), vertex, 0});
+    vector<size_t> version(thin.VertexCount(), 0);
+    vector<char> blocked(thin.VertexCount(), 0);
+    priority_queue<Cand, vector<Cand>, ByCost> todo;
+    for (size_t v = 0; v < thin.VertexCount(); ++v)
+        todo.push(Cand{fabs(K[v]), v, 0});
 
-    std::size_t activeVertices = simplified.VertexCount();
-    std::size_t activeFaces = simplified.FaceCount();
-    const long long characteristic = static_cast<long long>(activeVertices)
-        - 3 * static_cast<long long>(activeFaces) / 2 + activeFaces;
+    size_t verts = thin.VertexCount();
+    size_t faces = thin.FaceCount();
+    const long long euler = static_cast<long long>(verts)
+        - 3 * static_cast<long long>(faces) / 2 + faces;
 
-    while (!queue.empty())
+    while (!todo.empty())
     {
-        const Candidate candidate = queue.top();
-        queue.pop();
-        if (!aliveVertex[candidate.vertex] || blocked[candidate.vertex]
-            || candidate.version != version[candidate.vertex])
+        const Cand c = todo.top();
+        todo.pop();
+        if (!liveVert[c.vertex] || blocked[c.vertex] || c.version != version[c.vertex])
             continue;
 
-        std::vector<std::size_t> ring;
-        if (!TryRemove(candidate.vertex, ring))
+        vector<size_t> ring;
+        if (!chop(c.vertex, ring))
         {
-            blocked[candidate.vertex] = 1;
+            blocked[c.vertex] = 1;
             continue;
         }
-        ++removedVertices;
-        --activeVertices;
-        activeFaces -= 2;
+        ++deadVerts;
+        --verts;
+        faces -= 2;
 
-        // Eulerian check: removing a vertex, three edges and two faces keeps V - E + F.
-        const long long after = static_cast<long long>(activeVertices)
-            - 3 * static_cast<long long>(activeFaces) / 2 + activeFaces;
-        if (after != characteristic)
-            throw std::runtime_error("Euler check failed during simplification");
+        // Eulerian check: one vertex, three edges and two faces per chop
+        const long long after = static_cast<long long>(verts)
+            - 3 * static_cast<long long>(faces) / 2 + faces;
+        if (after != euler)
+            throw runtime_error("Euler check failed during simplification");
 
-        if (activeVertices <= targetVertices) break;
+        if (verts <= target) break;
 
-        // Only the old 1-ring changed: refresh its curvature and re-queue.
-        std::set<std::size_t> affected(ring.begin(), ring.end());
-        for (std::size_t vertex : affected)
+        // only the old 1-ring moved, so refresh that and re-queue it
+        set<size_t> touched(ring.begin(), ring.end());
+        for (size_t v : touched)
         {
-            UpdateCurvature(vertex);
-            ++version[vertex];
-            blocked[vertex] = 0;
-            queue.push(Candidate{std::fabs(gaussian[vertex]), vertex, version[vertex]});
+            curvature(v);
+            ++version[v];
+            blocked[v] = 0;
+            todo.push(Cand{fabs(K[v]), v, version[v]});
         }
     }
 
-    // Drop dead faces and renumber the vertices they still use.
-    std::vector<std::size_t> remap(simplified.VertexCount(), kNoFace);
-    std::vector<FaceIndexedMesh::Vertex> vertices;
-    std::vector<FaceIndexedMesh::Face> faces;
-    for (std::size_t face = 0; face < simplified.FaceCount(); ++face)
+    // bin the dead faces and renumber whatever vertices are still used
+    vector<size_t> remap(thin.VertexCount(), NONE);
+    vector<FaceIndexedMesh::Vertex> vertsOut;
+    vector<FaceIndexedMesh::Face> facesOut;
+    for (size_t f = 0; f < thin.FaceCount(); ++f)
     {
-        if (!aliveFace[face]) continue;
-        FaceIndexedMesh::Face remapped = {};
-        for (std::size_t corner = 0; corner < 3; ++corner)
+        if (!liveFace[f]) continue;
+        FaceIndexedMesh::Face tri = {};
+        for (size_t k = 0; k < 3; ++k)
         {
-            const std::size_t vertex = simplified.faces[face][corner];
-            if (remap[vertex] == kNoFace)
+            const size_t v = thin.faces[f][k];
+            if (remap[v] == NONE)
             {
-                remap[vertex] = vertices.size();
-                vertices.push_back(simplified.vertices[vertex]);
+                remap[v] = vertsOut.size();
+                vertsOut.push_back(thin.vertices[v]);
             }
-            remapped[corner] = remap[vertex];
+            tri[k] = remap[v];
         }
-        faces.push_back(remapped);
+        facesOut.push_back(tri);
     }
-    simplified.vertices.swap(vertices);
-    simplified.faces.swap(faces);
+    thin.vertices.swap(vertsOut);
+    thin.faces.swap(facesOut);
 }
 
-double MeshSimplifier::FaceArea(std::size_t face) const
+double MeshSimplifier::triArea(size_t f) const
 {
-    const FaceIndexedMesh::Face &corners = simplified.faces[face];
-    const FaceIndexedMesh::Vertex &a = simplified.vertices[corners[0]];
-    const FaceIndexedMesh::Vertex &b = simplified.vertices[corners[1]];
-    const FaceIndexedMesh::Vertex &c = simplified.vertices[corners[2]];
+    const FaceIndexedMesh::Face &t = thin.faces[f];
+    const FaceIndexedMesh::Vertex &a = thin.vertices[t[0]];
+    const FaceIndexedMesh::Vertex &b = thin.vertices[t[1]];
+    const FaceIndexedMesh::Vertex &c = thin.vertices[t[2]];
     const double ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
     const double vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
     const double cx = uy * vz - uz * vy;
     const double cy = uz * vx - ux * vz;
     const double cz = ux * vy - uy * vx;
-    return 0.5 * std::sqrt(cx * cx + cy * cy + cz * cz);
+    return 0.5 * sqrt(cx * cx + cy * cy + cz * cz);
 }
 
-double MeshSimplifier::Angle(std::size_t vertex, const FaceIndexedMesh::Face &face) const
+double MeshSimplifier::angleAt(size_t v, const FaceIndexedMesh::Face &tri) const
 {
-    const std::size_t corner = face[0] == vertex ? 0 : face[1] == vertex ? 1 : 2;
-    const FaceIndexedMesh::Vertex &v = simplified.vertices[vertex];
-    const FaceIndexedMesh::Vertex &a = simplified.vertices[face[(corner + 1) % 3]];
-    const FaceIndexedMesh::Vertex &b = simplified.vertices[face[(corner + 2) % 3]];
+    const size_t corner = tri[0] == v ? 0 : tri[1] == v ? 1 : 2;
+    const FaceIndexedMesh::Vertex &p = thin.vertices[v];
+    const FaceIndexedMesh::Vertex &a = thin.vertices[tri[(corner + 1) % 3]];
+    const FaceIndexedMesh::Vertex &b = thin.vertices[tri[(corner + 2) % 3]];
+    const double ux = a[0] - p[0], uy = a[1] - p[1], uz = a[2] - p[2];
+    const double wx = b[0] - p[0], wy = b[1] - p[1], wz = b[2] - p[2];
+    const double cx = uy * wz - uz * wy;
+    const double cy = uz * wx - ux * wz;
+    const double cz = ux * wy - uy * wx;
+    return atan2(sqrt(cx * cx + cy * cy + cz * cz), ux * wx + uy * wy + uz * wz);
+}
+
+double MeshSimplifier::cotan(size_t at, size_t first, size_t second) const
+{
+    const FaceIndexedMesh::Vertex &v = thin.vertices[at];
+    const FaceIndexedMesh::Vertex &a = thin.vertices[first];
+    const FaceIndexedMesh::Vertex &b = thin.vertices[second];
     const double ux = a[0] - v[0], uy = a[1] - v[1], uz = a[2] - v[2];
     const double wx = b[0] - v[0], wy = b[1] - v[1], wz = b[2] - v[2];
     const double cx = uy * wz - uz * wy;
     const double cy = uz * wx - ux * wz;
     const double cz = ux * wy - uy * wx;
-    return std::atan2(std::sqrt(cx * cx + cy * cy + cz * cz),
-                      ux * wx + uy * wy + uz * wz);
+    return (ux * wx + uy * wy + uz * wz) / sqrt(cx * cx + cy * cy + cz * cz);
 }
 
-double MeshSimplifier::Cotangent(std::size_t at, std::size_t first, std::size_t second) const
+vector<size_t> MeshSimplifier::ringOf(size_t v) const
 {
-    const FaceIndexedMesh::Vertex &v = simplified.vertices[at];
-    const FaceIndexedMesh::Vertex &a = simplified.vertices[first];
-    const FaceIndexedMesh::Vertex &b = simplified.vertices[second];
-    const double ux = a[0] - v[0], uy = a[1] - v[1], uz = a[2] - v[2];
-    const double wx = b[0] - v[0], wy = b[1] - v[1], wz = b[2] - v[2];
-    const double cx = uy * wz - uz * wy;
-    const double cy = uz * wx - ux * wz;
-    const double cz = ux * wy - uy * wx;
-    return (ux * wx + uy * wy + uz * wz)
-           / std::sqrt(cx * cx + cy * cy + cz * cz);
-}
+    vector<size_t> ring;
+    if (around[v].empty()) return ring;
 
-std::vector<std::size_t> MeshSimplifier::Ring(std::size_t vertex) const
-{
-    std::vector<std::size_t> ring;
-    if (incident[vertex].empty()) return ring;
+    size_t face = around[v][0];
+    size_t corner = thin.faces[face][0] == v ? 0 : thin.faces[face][1] == v ? 1 : 2;
+    ring.push_back(thin.faces[face][(corner + 1) % 3]);
+    ring.push_back(thin.faces[face][(corner + 2) % 3]);
 
-    std::size_t currentFace = incident[vertex][0];
-    std::size_t corner = simplified.faces[currentFace][0] == vertex ? 0
-                       : simplified.faces[currentFace][1] == vertex ? 1 : 2;
-    ring.push_back(simplified.faces[currentFace][(corner + 1) % 3]);
-    ring.push_back(simplified.faces[currentFace][(corner + 2) % 3]);
-
-    for (std::size_t steps = 0; steps <= incident[vertex].size(); ++steps)
+    for (size_t steps = 0; steps <= around[v].size(); ++steps)
     {
-        const std::size_t lastVertex = ring.back();
-        const std::map<Edge, std::pair<std::size_t, std::size_t> >::const_iterator entry =
-            edgeFaces.find(MakeEdge(vertex, lastVertex));
-        if (entry == edgeFaces.end()) throw std::runtime_error("vertex is not interior");
-        const std::size_t other = entry->second.first == currentFace
+        const size_t last = ring.back();
+        const auto entry = edgeFaces.find(key(v, last));
+        if (entry == edgeFaces.end()) throw runtime_error("vertex is not interior");
+        const size_t other = entry->second.first == face
             ? entry->second.second : entry->second.first;
-        if (other == kNoFace) throw std::runtime_error("vertex is on the boundary");
+        if (other == NONE) throw runtime_error("vertex is on the boundary");
 
-        corner = simplified.faces[other][0] == vertex ? 0
-               : simplified.faces[other][1] == vertex ? 1 : 2;
-        const std::size_t n1 = simplified.faces[other][(corner + 1) % 3];
-        const std::size_t n2 = simplified.faces[other][(corner + 2) % 3];
-        const std::size_t next = n1 == lastVertex ? n2 : n1;
-        if (next == ring.front()) break; // Back at the first ring vertex.
+        corner = thin.faces[other][0] == v ? 0 : thin.faces[other][1] == v ? 1 : 2;
+        const size_t n1 = thin.faces[other][(corner + 1) % 3];
+        const size_t n2 = thin.faces[other][(corner + 2) % 3];
+        const size_t next = n1 == last ? n2 : n1;
+        if (next == ring.front()) break;   // round the ring, we're done
         ring.push_back(next);
-        currentFace = other;
+        face = other;
     }
     return ring;
 }
 
-void MeshSimplifier::UpdateCurvature(std::size_t vertex)
+void MeshSimplifier::curvature(size_t v)
 {
     double angles = 0.0;
     double mixedArea = 0.0;
-    std::map<std::size_t, double> weight;
-    for (std::size_t face : incident[vertex])
+    map<size_t, double> weight;
+    for (size_t f : around[v])
     {
-        const FaceIndexedMesh::Face &corners = simplified.faces[face];
-        const std::size_t corner = corners[0] == vertex ? 0
-                                 : corners[1] == vertex ? 1 : 2;
-        const std::size_t a = corners[(corner + 1) % 3];
-        const std::size_t b = corners[(corner + 2) % 3];
-        angles += Angle(vertex, corners);
-        mixedArea += FaceArea(face) / 3.0;
-        // The cotangent opposite edge (vertex, neighbour) sits at the third corner.
-        weight[a] += Cotangent(b, vertex, a);
-        weight[b] += Cotangent(a, vertex, b);
+        const FaceIndexedMesh::Face &t = thin.faces[f];
+        const size_t corner = t[0] == v ? 0 : t[1] == v ? 1 : 2;
+        const size_t a = t[(corner + 1) % 3], b = t[(corner + 2) % 3];
+        angles += angleAt(v, t);
+        mixedArea += triArea(f) / 3.0;
+        // the cotangent opposite edge (v, neighbour) sits at the third corner
+        weight[a] += cotan(b, v, a);
+        weight[b] += cotan(a, v, b);
     }
 
-    // Gaussian curvature from the angle defect; mean curvature from Laplace-Beltrami.
-    gaussian[vertex] = (2.0 * kPi - angles) / mixedArea;
+    // Gaussian from the angle defect, mean from Laplace-Beltrami
+    K[v] = (2.0 * PI - angles) / mixedArea;
     double hx = 0.0, hy = 0.0, hz = 0.0;
-    for (const auto &entry : weight)
+    for (const auto &w : weight)
     {
-        const FaceIndexedMesh::Vertex &neighbour = simplified.vertices[entry.first];
-        hx += entry.second * (neighbour[0] - simplified.vertices[vertex][0]);
-        hy += entry.second * (neighbour[1] - simplified.vertices[vertex][1]);
-        hz += entry.second * (neighbour[2] - simplified.vertices[vertex][2]);
+        const FaceIndexedMesh::Vertex &n = thin.vertices[w.first];
+        hx += w.second * (n[0] - thin.vertices[v][0]);
+        hy += w.second * (n[1] - thin.vertices[v][1]);
+        hz += w.second * (n[2] - thin.vertices[v][2]);
     }
-    const double length = std::sqrt(hx * hx + hy * hy + hz * hz);
-    mean[vertex] = 0.25 * length / mixedArea;
+    const double len = sqrt(hx * hx + hy * hy + hz * hz);
+    H[v] = 0.25 * len / mixedArea;
 }
 
-bool MeshSimplifier::TryRemove(std::size_t vertex, std::vector<std::size_t> &ring)
+bool MeshSimplifier::chop(size_t v, vector<size_t> &ring)
 {
-    ring = Ring(vertex);
-    const std::size_t size = ring.size();
-    if (size < 3 || size != incident[vertex].size()) return false;
-    if (std::set<std::size_t>(ring.begin(), ring.end()).size() != size) return false;
+    ring = ringOf(v);
+    const size_t size = ring.size();
+    if (size < 3 || size != around[v].size()) return false;
+    if (set<size_t>(ring.begin(), ring.end()).size() != size) return false;
 
-    // Reference normal of the surface around the vertex.
-    const FaceIndexedMesh::Face &reference = simplified.faces[incident[vertex][0]];
-    const FaceIndexedMesh::Vertex &r0 = simplified.vertices[reference[0]];
-    const FaceIndexedMesh::Vertex &r1 = simplified.vertices[reference[1]];
-    const FaceIndexedMesh::Vertex &r2 = simplified.vertices[reference[2]];
+    // reference normal of the surface around the vertex
+    const FaceIndexedMesh::Face &ref = thin.faces[around[v][0]];
+    const FaceIndexedMesh::Vertex &r0 = thin.vertices[ref[0]];
+    const FaceIndexedMesh::Vertex &r1 = thin.vertices[ref[1]];
+    const FaceIndexedMesh::Vertex &r2 = thin.vertices[ref[2]];
     const double ux = r1[0] - r0[0], uy = r1[1] - r0[1], uz = r1[2] - r0[2];
     const double wx = r2[0] - r0[0], wy = r2[1] - r0[1], wz = r2[2] - r0[2];
     const double nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
 
-    // Fan from the ring vertex whose thinnest triangle is largest; new diagonals only.
-    double bestMinimum = 0.0;
-    std::size_t bestCentre = size;
-    for (std::size_t centre = 0; centre < size; ++centre)
+    // fan from the ring vertex whose thinnest triangle is the fattest one, and
+    // only diagonals that aren't already edges
+    double bestMin = 0.0;
+    size_t best = size;
+    for (size_t centre = 0; centre < size; ++centre)
     {
-        const std::size_t c = ring[centre];
-        bool valid = true;
-        double minimum = std::numeric_limits<double>::max();
-        for (std::size_t step = 1; step <= size - 2; ++step)
+        const size_t c = ring[centre];
+        bool ok = true;
+        double smallest = numeric_limits<double>::max();
+        for (size_t step = 1; step <= size - 2; ++step)
         {
-            const std::size_t a = ring[(centre + step) % size];
-            const std::size_t b = ring[(centre + step + 1) % size];
-            const FaceIndexedMesh::Vertex &pc = simplified.vertices[c];
-            const FaceIndexedMesh::Vertex &pa = simplified.vertices[a];
-            const FaceIndexedMesh::Vertex &pb = simplified.vertices[b];
+            const size_t a = ring[(centre + step) % size];
+            const size_t b = ring[(centre + step + 1) % size];
+            const FaceIndexedMesh::Vertex &pc = thin.vertices[c];
+            const FaceIndexedMesh::Vertex &pa = thin.vertices[a];
+            const FaceIndexedMesh::Vertex &pb = thin.vertices[b];
             const double ex = pa[0] - pc[0], ey = pa[1] - pc[1], ez = pa[2] - pc[2];
             const double fx = pb[0] - pc[0], fy = pb[1] - pc[1], fz = pb[2] - pc[2];
             const double cx = ey * fz - ez * fy;
             const double cy = ez * fx - ex * fz;
             const double cz = ex * fy - ey * fx;
-            const double area2 = std::sqrt(cx * cx + cy * cy + cz * cz);
+            const double area2 = sqrt(cx * cx + cy * cy + cz * cz);
             if (area2 < 1e-14 || cx * nx + cy * ny + cz * nz <= 0.0)
             {
-                valid = false;
+                ok = false;
                 break;
             }
-            minimum = std::min(minimum, area2);
+            smallest = min(smallest, area2);
         }
-        if (!valid) continue;
+        if (!ok) continue;
         if (size == 3)
         {
-            // The fan triangle must not duplicate the opposite face (double cover).
-            const std::size_t a = ring[(centre + 1) % 3];
-            const std::size_t b = ring[(centre + 2) % 3];
-            const std::map<Edge, std::pair<std::size_t, std::size_t> >::const_iterator entry =
-                edgeFaces.find(MakeEdge(a, b));
-            const std::size_t other = simplified.faces[entry->second.first][0] == vertex
-                                      || simplified.faces[entry->second.first][1] == vertex
-                                      || simplified.faces[entry->second.first][2] == vertex
+            // don't let the fan triangle double-cover the face opposite it
+            const size_t a = ring[(centre + 1) % 3];
+            const size_t b = ring[(centre + 2) % 3];
+            const auto entry = edgeFaces.find(key(a, b));
+            const size_t other = thin.faces[entry->second.first][0] == v
+                              || thin.faces[entry->second.first][1] == v
+                              || thin.faces[entry->second.first][2] == v
                 ? entry->second.second : entry->second.first;
-            const FaceIndexedMesh::Face &opposite = simplified.faces[other];
-            if (opposite[0] == c || opposite[1] == c || opposite[2] == c) valid = false;
+            const FaceIndexedMesh::Face &opposite = thin.faces[other];
+            if (opposite[0] == c || opposite[1] == c || opposite[2] == c) ok = false;
         }
-        if (!valid) continue;
-        for (std::size_t step = 2; step <= size - 2; ++step)
+        if (!ok) continue;
+        for (size_t step = 2; step <= size - 2; ++step)
         {
-            if (edgeFaces.count(MakeEdge(c, ring[(centre + step) % size])))
+            if (edgeFaces.count(key(c, ring[(centre + step) % size])))
             {
-                valid = false;
+                ok = false;
                 break;
             }
         }
-        if (valid && minimum > bestMinimum)
+        if (ok && smallest > bestMin)
         {
-            bestMinimum = minimum;
-            bestCentre = centre;
+            bestMin = smallest;
+            best = centre;
         }
     }
-    if (bestCentre == size) return false;
+    if (best == size) return false;
 
-    // Commit: drop the incident faces, append the fan, refresh edge and vertex data.
-    const std::vector<std::size_t> removed = incident[vertex];
-    const std::set<std::size_t> dead(removed.begin(), removed.end());
-    for (std::size_t face : removed)
+    // commit: bin the incident faces, add the fan, fix up edges and vertices
+    const vector<size_t> dead = around[v];
+    const set<size_t> deadSet(dead.begin(), dead.end());
+    for (size_t f : dead)
     {
-        aliveFace[face] = 0;
-        const FaceIndexedMesh::Face &corners = simplified.faces[face];
-        for (std::size_t corner = 0; corner < 3; ++corner)
+        liveFace[f] = 0;
+        const FaceIndexedMesh::Face &t = thin.faces[f];
+        for (size_t k = 0; k < 3; ++k)
         {
-            std::map<Edge, std::pair<std::size_t, std::size_t> >::iterator entry =
-                edgeFaces.find(MakeEdge(corners[corner], corners[(corner + 1) % 3]));
-            if (entry->second.first == face) entry->second.first = kNoFace;
-            else entry->second.second = kNoFace;
-            if (entry->second.first == kNoFace && entry->second.second == kNoFace)
+            auto entry = edgeFaces.find(key(t[k], t[(k + 1) % 3]));
+            if (entry->second.first == f) entry->second.first = NONE;
+            else entry->second.second = NONE;
+            if (entry->second.first == NONE && entry->second.second == NONE)
                 edgeFaces.erase(entry);
         }
     }
-    aliveVertex[vertex] = 0;
-    incident[vertex].clear();
+    liveVert[v] = 0;
+    around[v].clear();
 
-    const std::set<std::size_t> ringSet(ring.begin(), ring.end());
-    for (std::size_t neighbour : ringSet)
+    const set<size_t> ringSet(ring.begin(), ring.end());
+    for (size_t n : ringSet)
     {
-        std::vector<std::size_t> filtered;
-        for (std::size_t face : incident[neighbour])
-            if (!dead.count(face)) filtered.push_back(face);
-        incident[neighbour].swap(filtered);
+        vector<size_t> keep;
+        for (size_t f : around[n])
+            if (!deadSet.count(f)) keep.push_back(f);
+        around[n].swap(keep);
     }
 
-    const std::size_t c = ring[bestCentre];
-    for (std::size_t step = 1; step <= size - 2; ++step)
+    const size_t c = ring[best];
+    for (size_t step = 1; step <= size - 2; ++step)
     {
         const FaceIndexedMesh::Face fan = {{
-            c, ring[(bestCentre + step) % size], ring[(bestCentre + step + 1) % size]}};
-        const std::size_t newFace = simplified.faces.size();
-        simplified.faces.push_back(fan);
-        aliveFace.push_back(1);
-        for (std::size_t corner = 0; corner < 3; ++corner)
+            c, ring[(best + step) % size], ring[(best + step + 1) % size]}};
+        const size_t newFace = thin.faces.size();
+        thin.faces.push_back(fan);
+        liveFace.push_back(1);
+        for (size_t k = 0; k < 3; ++k)
         {
-            const std::size_t first = fan[corner];
-            const std::size_t second = fan[(corner + 1) % 3];
-            std::map<Edge, std::pair<std::size_t, std::size_t> >::iterator entry =
-                edgeFaces.find(MakeEdge(first, second));
+            const size_t a = fan[k], b = fan[(k + 1) % 3];
+            auto entry = edgeFaces.find(key(a, b));
             if (entry == edgeFaces.end())
-                edgeFaces.insert(std::make_pair(MakeEdge(first, second),
-                                                std::make_pair(newFace, kNoFace)));
-            else if (entry->second.first == kNoFace)
+                edgeFaces.insert(make_pair(key(a, b), make_pair(newFace, NONE)));
+            else if (entry->second.first == NONE)
                 entry->second.first = newFace;
-            else if (entry->second.second == kNoFace)
+            else if (entry->second.second == NONE)
                 entry->second.second = newFace;
             else
-                throw std::runtime_error("simplification created a non-manifold edge "
-                    + std::to_string(first) + "-" + std::to_string(second)
-                    + " while removing vertex " + std::to_string(vertex));
-            incident[first].push_back(newFace);
+                throw runtime_error("simplification created a non-manifold edge "
+                    + to_string(a) + "-" + to_string(b)
+                    + " while removing vertex " + to_string(v));
+            around[a].push_back(newFace);
         }
     }
     return true;

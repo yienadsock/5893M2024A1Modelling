@@ -1,5 +1,4 @@
-#ifndef MESH_ANALYSIS_H
-#define MESH_ANALYSIS_H
+#pragma once
 
 #include "../converter/FaceIndexedMesh.h"
 
@@ -8,25 +7,21 @@
 
 class DirectedEdgeMesh;
 
-// Tasks II and III: closed-manifold test, then genus from the Euler formula.
+// tasks II + III: manifold or not, and the genus if it is
 class MeshAnalysis
 {
 public:
     explicit MeshAnalysis(const FaceIndexedMesh &mesh);
 
-    bool IsManifold() const { return failureText == "None"; }
-    // "None" for a manifold mesh, otherwise the failing edge and vertex IDs.
-    const std::string &Failure() const { return failureText; }
-    // Sum of the component genera; only meaningful for a manifold mesh.
-    std::size_t Genus() const { return surfaceGenus; }
+    bool manifold() const { return bad == "None"; }
+    const std::string &why() const { return bad; }    // failure text, or "None"
+    std::size_t genus() const { return g; }           // summed over all pieces
 
 private:
-    // Both helpers read the private connectivity of their DirectedEdgeMesh argument.
-    std::string FindFailure(const DirectedEdgeMesh &connectivity) const;
-    std::size_t ComputeGenus(const DirectedEdgeMesh &connectivity) const;
+    // both read the private connectivity of the mesh we build ourselves
+    std::string check(const DirectedEdgeMesh &c) const;
+    std::size_t euler(const DirectedEdgeMesh &c) const;
 
-    std::string failureText;
-    std::size_t surfaceGenus;
+    std::string bad;
+    std::size_t g;
 };
-
-#endif

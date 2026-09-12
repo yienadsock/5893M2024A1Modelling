@@ -14,9 +14,9 @@ public:
     typedef std::array<double, 3> Vertex;
     typedef std::array<std::size_t, 3> Face;
 
-    // Throws std::runtime_error if the triangle soup is malformed.
+    // Throws std::runtime_error if the triangle soup is bad.
     static FaceIndexedMesh ReadTriangleSoup(std::istream &input);
-    // Implemented in DirectedEdgeMesh.cpp; reads the .face produced by step (a).
+    // In DirectedEdgeMesh.cpp; reads the .face produced by step (a).
     static FaceIndexedMesh ReadFace(std::istream &input);
     void WriteFace(std::ostream &output, const std::string &objectName) const;
 

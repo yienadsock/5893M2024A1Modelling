@@ -1,5 +1,4 @@
-#ifndef MESH_REPAIR_H
-#define MESH_REPAIR_H
+#pragma once
 
 #include "../converter/FaceIndexedMesh.h"
 
@@ -7,25 +6,23 @@
 
 class DirectedEdgeMesh;
 
-// Task IV: removes debris (components, fins, flaps, pinches), then closes holes.
+// task IV: sweep out the junk (components, fins, flaps, pinches), then patch holes
 class MeshRepair
 {
 public:
     explicit MeshRepair(const FaceIndexedMesh &mesh);
 
-    std::size_t RemovedFaceCount() const { return removedFaces; }
-    std::size_t HoleCount() const { return holes; }
-    const FaceIndexedMesh &Mesh() const { return repaired; }
+    std::size_t dropped() const { return droppedFaces; }
+    std::size_t filled() const { return filledHoles; }
+    const FaceIndexedMesh &mesh() const { return fixed; }
 
 private:
-    // Deletes faces that stop the boundary being simple loops; true if any went.
-    bool RemoveBadFaces();
-    // Closes every simple hole; returns true when at least one was filled.
-    bool FillHoles();
+    // marks faces that would break the boundary loops; true if any went
+    bool trim();
+    // fans off every simple hole it can find; true if any got patched
+    bool patch();
 
-    FaceIndexedMesh repaired;
-    std::size_t removedFaces;
-    std::size_t holes;
+    FaceIndexedMesh fixed;
+    std::size_t droppedFaces;
+    std::size_t filledHoles;
 };
-
-#endif

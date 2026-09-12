@@ -7,25 +7,27 @@
 #include <utility>
 #include <vector>
 
+using namespace std;
+
 namespace
 {
 
-typedef std::vector<std::pair<std::size_t, std::size_t> > LinkEdges;
+typedef vector<pair<size_t, size_t> > Links;   // one link edge per pair
 
-// True when a vertex link is neither one path (boundary) nor one cycle (bow-tie).
-bool LinkFails(const LinkEdges &edges)
+// a vertex is bad unless its link is one path (boundary) or one cycle
+bool linkBad(const Links &edges)
 {
     if (edges.empty()) return true;
 
-    std::map<std::size_t, std::vector<std::size_t> > link;
-    for (const auto &edge : edges)
+    map<size_t, vector<size_t> > link;
+    for (const auto &e : edges)
     {
-        link[edge.first].push_back(edge.second);
-        link[edge.second].push_back(edge.first);
+        link[e.first].push_back(e.second);
+        link[e.second].push_back(e.first);
     }
 
-    // A manifold vertex has degree 1 or 2 everywhere, with 0 or 2 ends.
-    std::size_t ends = 0;
+    // degree 1 at the two ends, 2 everywhere else, nothing else allowed
+    size_t ends = 0;
     for (const auto &entry : link)
     {
         if (entry.second.size() == 1) ++ends;
@@ -33,22 +35,21 @@ bool LinkFails(const LinkEdges &edges)
     }
     if (ends != 0 && ends != 2) return true;
 
-    // Every link edge must be reachable from the first neighbour, else two fans meet.
-    std::vector<std::size_t> pending(1, link.begin()->first);
-    std::map<std::size_t, bool> visited;
-    while (!pending.empty())
+    // walk the link: if some of it can't be reached, two fans share the vertex
+    vector<size_t> todo(1, link.begin()->first);
+    map<size_t, bool> seen;
+    while (!todo.empty())
     {
-        const std::size_t neighbour = pending.back();
-        pending.pop_back();
-        if (visited[neighbour]) continue;
-        visited[neighbour] = true;
-        for (std::size_t next : link[neighbour]) pending.push_back(next);
+        const size_t v = todo.back();
+        todo.pop_back();
+        if (seen[v]) continue;
+        seen[v] = true;
+        for (size_t next : link[v]) todo.push_back(next);
     }
-    return visited.size() != link.size();
+    return seen.size() != link.size();
 }
 
-// Union-find over faces, used to split the mesh into connected components.
-std::size_t FindRoot(std::vector<std::size_t> &parent, std::size_t face)
+size_t rootOf(vector<size_t> &parent, size_t face)
 {
     while (parent[face] != face)
     {
@@ -58,101 +59,95 @@ std::size_t FindRoot(std::vector<std::size_t> &parent, std::size_t face)
     return face;
 }
 
-void JoinFaces(std::vector<std::size_t> &parent, std::size_t first, std::size_t second)
+void joinFaces(vector<size_t> &parent, size_t first, size_t second)
 {
-    const std::size_t firstRoot = FindRoot(parent, first);
-    const std::size_t secondRoot = FindRoot(parent, second);
-    if (firstRoot != secondRoot) parent[secondRoot] = firstRoot;
+    const size_t ra = rootOf(parent, first), rb = rootOf(parent, second);
+    if (ra != rb) parent[rb] = ra;
 }
 
 } // namespace
 
 MeshAnalysis::MeshAnalysis(const FaceIndexedMesh &mesh)
-    : failureText("None"), surfaceGenus(0)
+    : bad("None"), g(0)
 {
-    const DirectedEdgeMesh connectivity(mesh);
-    failureText = FindFailure(connectivity);
-    if (failureText == "None") surfaceGenus = ComputeGenus(connectivity);
+    const DirectedEdgeMesh c(mesh);
+    bad = check(c);
+    if (bad == "None") g = euler(c);
 }
 
-std::string MeshAnalysis::FindFailure(const DirectedEdgeMesh &connectivity) const
+string MeshAnalysis::check(const DirectedEdgeMesh &c) const
 {
-    if (connectivity.mesh.FaceCount() == 0)
+    if (c.mesh.FaceCount() == 0)
         return "failing edge: the mesh has no faces";
 
-    std::string failure;
-
-    // Task II: an unpaired edge is a hole; a broken vertex link is a failure.
-    for (std::size_t edge = 0; edge < connectivity.otherHalves.size(); ++edge)
+    // task II: an unpaired edge is a hole, a broken link is a pinch
+    string fail;
+    for (size_t e = 0; e < c.otherHalves.size(); ++e)
     {
-        if (connectivity.otherHalves[edge] != -1) continue;
-        const DirectedEdgeMesh::EdgeKey ends = connectivity.Endpoints(edge);
-        failure = "failing edge " + std::to_string(edge) + " (vertices "
-                + std::to_string(ends[0]) + " " + std::to_string(ends[1]) + ")";
+        if (c.otherHalves[e] != -1) continue;
+        const DirectedEdgeMesh::EdgeKey ends = c.Endpoints(e);
+        fail = "failing edge " + to_string(e) + " (vertices "
+             + to_string(ends[0]) + " " + to_string(ends[1]) + ")";
         break;
     }
 
-    // Task II: the link of every vertex must be a single path or cycle.
-    std::vector<LinkEdges> links(connectivity.mesh.VertexCount());
-    for (const FaceIndexedMesh::Face &face : connectivity.mesh.Faces())
+    // task II again: every vertex link has to be a path or a cycle
+    vector<Links> links(c.mesh.VertexCount());
+    for (const FaceIndexedMesh::Face &tri : c.mesh.Faces())
     {
-        for (std::size_t corner = 0; corner < 3; ++corner)
-        {
-            links[face[corner]].push_back(std::make_pair(face[(corner + 1) % 3],
-                                                         face[(corner + 2) % 3]));
-        }
+        for (size_t corner = 0; corner < 3; ++corner)
+            links[tri[corner]].push_back(make_pair(tri[(corner + 1) % 3],
+                                                   tri[(corner + 2) % 3]));
     }
-    for (std::size_t vertex = 0; vertex < links.size(); ++vertex)
+    for (size_t v = 0; v < links.size(); ++v)
     {
-        if (!LinkFails(links[vertex])) continue;
-        if (!failure.empty()) failure += ", ";
-        failure += "failing vertex " + std::to_string(vertex);
+        if (!linkBad(links[v])) continue;
+        if (!fail.empty()) fail += ", ";
+        fail += "failing vertex " + to_string(v);
         break;
     }
 
-    return failure.empty() ? "None" : failure;
+    return fail.empty() ? "None" : fail;
 }
 
-std::size_t MeshAnalysis::ComputeGenus(const DirectedEdgeMesh &connectivity) const
+size_t MeshAnalysis::euler(const DirectedEdgeMesh &c) const
 {
-    // Task III: each closed component satisfies V - E + F = 2 - 2g.
-    std::vector<std::size_t> parent(connectivity.mesh.FaceCount());
-    for (std::size_t face = 0; face < parent.size(); ++face) parent[face] = face;
-    for (std::size_t edge = 0; edge < connectivity.otherHalves.size(); ++edge)
+    // task III: each closed piece satisfies V - E + F = 2 - 2g
+    vector<size_t> parent(c.mesh.FaceCount());
+    for (size_t f = 0; f < parent.size(); ++f) parent[f] = f;
+    for (size_t e = 0; e < c.otherHalves.size(); ++e)
     {
-        if (connectivity.otherHalves[edge] != -1)
-            JoinFaces(parent, edge / 3, connectivity.otherHalves[edge] / 3);
+        if (c.otherHalves[e] != -1) joinFaces(parent, e / 3, c.otherHalves[e] / 3);
     }
 
-    std::map<std::size_t, std::size_t> componentOfRoot;
-    std::vector<std::size_t> faceCount;
-    std::vector<std::vector<bool> > vertexUsed;
-    for (std::size_t face = 0; face < connectivity.mesh.FaceCount(); ++face)
+    map<size_t, size_t> indexOf;
+    vector<size_t> faceCount;
+    vector<vector<bool> > vertexUsed;
+    for (size_t f = 0; f < c.mesh.FaceCount(); ++f)
     {
-        const std::size_t root = FindRoot(parent, face);
-        std::map<std::size_t, std::size_t>::iterator entry = componentOfRoot.find(root);
-        if (entry == componentOfRoot.end())
+        const size_t r = rootOf(parent, f);
+        auto entry = indexOf.find(r);
+        if (entry == indexOf.end())
         {
-            const std::size_t index = faceCount.size();
-            entry = componentOfRoot.insert(std::make_pair(root, index)).first;
+            const size_t index = faceCount.size();
+            entry = indexOf.insert(make_pair(r, index)).first;
             faceCount.push_back(0);
-            vertexUsed.push_back(std::vector<bool>(connectivity.mesh.VertexCount(), false));
+            vertexUsed.push_back(vector<bool>(c.mesh.VertexCount(), false));
         }
-        const std::size_t component = entry->second;
-        ++faceCount[component];
-        for (std::size_t vertex : connectivity.mesh.Faces()[face])
-            vertexUsed[component][vertex] = true;
+        const size_t piece = entry->second;
+        ++faceCount[piece];
+        for (size_t v : c.mesh.Faces()[f]) vertexUsed[piece][v] = true;
     }
 
-    std::ptrdiff_t genus = 0;
-    for (std::size_t component = 0; component < faceCount.size(); ++component)
+    ptrdiff_t genus = 0;
+    for (size_t piece = 0; piece < faceCount.size(); ++piece)
     {
-        const std::ptrdiff_t faces = static_cast<std::ptrdiff_t>(faceCount[component]);
-        // A closed component has two faces per edge, so E = 3F / 2.
-        const std::ptrdiff_t edges = 3 * faces / 2;
-        const std::ptrdiff_t vertices = static_cast<std::ptrdiff_t>(
-            std::count(vertexUsed[component].begin(), vertexUsed[component].end(), true));
-        genus += (2 - (vertices - edges + faces)) / 2;
+        const ptrdiff_t f = static_cast<ptrdiff_t>(faceCount[piece]);
+        // two faces per edge on a closed piece, so E = 3F / 2
+        const ptrdiff_t e = 3 * f / 2;
+        const ptrdiff_t v = static_cast<ptrdiff_t>(
+            count(vertexUsed[piece].begin(), vertexUsed[piece].end(), true));
+        genus += (2 - (v - e + f)) / 2;
     }
-    return static_cast<std::size_t>(genus);
+    return static_cast<size_t>(genus);
 }

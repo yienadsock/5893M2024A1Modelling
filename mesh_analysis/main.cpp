@@ -16,194 +16,183 @@
 #include <sys/stat.h>
 #endif
 
+using namespace std;
+
 namespace
 {
 
-const char *const ReportFileName = "manifold test results.txt";
+const char *const reportName = "manifold test results.txt";
 
 struct Result
 {
-    std::string verdict;
-    std::string detail;
+    string verdict;
+    string detail;
 };
 
-void Usage(std::ostream &output)
+void usage(ostream &out)
 {
-    output << "Usage: mesh_test model.tri|model.face|model.diredge [more files or directories]\n"
-              "Tests every file, writes manifold test results.txt and reports the failing\n"
-              "edge and vertex IDs of non-manifold meshes plus the genus of the others.\n";
+    out << "Usage: mesh_test model.tri|model.face|model.diredge [more files or directories]\n"
+           "Tests every file, writes manifold test results.txt and reports the failing\n"
+           "edge and vertex IDs of non-manifold meshes plus the genus of the others.\n";
 }
 
-std::string FileName(const std::string &path)
+string fileName(const string &path)
 {
-    const std::size_t slash = path.find_last_of("/\\");
-    return slash == std::string::npos ? path : path.substr(slash + 1);
+    const size_t slash = path.find_last_of("/\\");
+    return slash == string::npos ? path : path.substr(slash + 1);
 }
 
-std::string Extension(const std::string &path)
+string extensionOf(const string &path)
 {
-    const std::size_t dot = path.find_last_of('.');
-    const std::size_t slash = path.find_last_of("/\\");
-    if (dot == std::string::npos || (slash != std::string::npos && dot < slash))
-        return std::string();
-    std::string extension = path.substr(dot + 1);
-    std::transform(extension.begin(), extension.end(), extension.begin(),
-                   [](unsigned char letter)
-                   { return static_cast<char>(std::tolower(letter)); });
-    return extension;
+    const size_t dot = path.find_last_of('.');
+    const size_t slash = path.find_last_of("/\\");
+    if (dot == string::npos || (slash != string::npos && dot < slash)) return string();
+    string ext = path.substr(dot + 1);
+    transform(ext.begin(), ext.end(), ext.begin(),
+              [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext;
 }
 
-bool IsSupported(const std::string &path)
+bool supported(const string &path)
 {
-    const std::string extension = Extension(path);
-    return extension == "tri" || extension == "face" || extension == "diredge";
+    const string ext = extensionOf(path);
+    return ext == "tri" || ext == "face" || ext == "diredge";
 }
 
 #ifdef _WIN32
 
-bool IsDirectory(const std::string &path)
+bool isDir(const string &path)
 {
-    const DWORD attributes = GetFileAttributesA(path.c_str());
-    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    const DWORD attr = GetFileAttributesA(path.c_str());
+    return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
-void AppendDirectory(const std::string &directory, std::vector<std::string> &paths)
+void addDir(const string &dir, vector<string> &paths)
 {
     WIN32_FIND_DATAA entry;
-    const HANDLE search = FindFirstFileA((directory + "\\*").c_str(), &entry);
+    const HANDLE search = FindFirstFileA((dir + "\\*").c_str(), &entry);
     if (search == INVALID_HANDLE_VALUE) return;
     do
     {
         if ((entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) continue;
-        const std::string path = directory + "\\" + entry.cFileName;
-        if (IsSupported(path)) paths.push_back(path);
+        const string path = dir + "\\" + entry.cFileName;
+        if (supported(path)) paths.push_back(path);
     } while (FindNextFileA(search, &entry) != 0);
     FindClose(search);
 }
 
 #else
 
-bool IsDirectory(const std::string &path)
+bool isDir(const string &path)
 {
-    struct stat information;
-    return stat(path.c_str(), &information) == 0 && S_ISDIR(information.st_mode);
+    struct stat info;
+    return stat(path.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
 }
 
-void AppendDirectory(const std::string &directory, std::vector<std::string> &paths)
+void addDir(const string &dir, vector<string> &paths)
 {
-    DIR *handle = opendir(directory.c_str());
+    DIR *handle = opendir(dir.c_str());
     if (handle == 0) return;
     while (const dirent *entry = readdir(handle))
     {
-        const std::string path = directory + "/" + entry->d_name;
-        if (IsSupported(path) && !IsDirectory(path)) paths.push_back(path);
+        const string path = dir + "/" + entry->d_name;
+        if (supported(path) && !isDir(path)) paths.push_back(path);
     }
     closedir(handle);
 }
 
 #endif
 
-std::vector<std::string> CollectInputFiles(int argc, char **argv)
+// handy: pass a folder and it picks up every mesh file inside
+vector<string> collect(int argc, char **argv)
 {
-    std::vector<std::string> paths;
-    for (int argument = 1; argument < argc; ++argument)
+    vector<string> paths;
+    for (int i = 1; i < argc; ++i)
     {
-        const std::string path = argv[argument];
-        if (IsDirectory(path)) AppendDirectory(path, paths);
+        const string path = argv[i];
+        if (isDir(path)) addDir(path, paths);
         else paths.push_back(path);
     }
-    std::sort(paths.begin(), paths.end());
+    sort(paths.begin(), paths.end());
     return paths;
 }
 
-FaceIndexedMesh ReadMesh(const std::string &path)
+FaceIndexedMesh readMesh(const string &path)
 {
-    std::ifstream input(path.c_str());
-    if (!input) throw std::runtime_error("cannot open input file");
-    if (Extension(path) == "tri") return FaceIndexedMesh::ReadTriangleSoup(input);
+    ifstream in(path.c_str());
+    if (!in) throw runtime_error("cannot open input file");
+    if (extensionOf(path) == "tri") return FaceIndexedMesh::ReadTriangleSoup(in);
 
-    // .face and .diredge share their geometry records; rebuild the Task I connectivity.
-    std::ostringstream geometry;
-    std::string line, kind;
-    while (std::getline(input, line))
+    // .face and .diredge share the geometry records, so keep those lines and
+    // let ReadFace rebuild the Task I connectivity for us
+    ostringstream kept;
+    string line, kind;
+    while (getline(in, line))
     {
-        std::istringstream record(line);
+        istringstream record(line);
         record >> kind;
-        if (kind != "FirstDirectedEdge" && kind != "OtherHalf")
-            geometry << line << '\n';
+        if (kind != "FirstDirectedEdge" && kind != "OtherHalf") kept << line << '\n';
     }
-    std::istringstream indexed(geometry.str());
-    return FaceIndexedMesh::ReadFace(indexed);
+    istringstream rebuilt(kept.str());
+    return FaceIndexedMesh::ReadFace(rebuilt);
 }
 
-Result Analyse(const std::string &path)
+Result analyse(const string &path)
 {
-    Result result;
+    Result r;
     try
     {
-        const MeshAnalysis analysis(ReadMesh(path));
-        if (analysis.IsManifold())
-        {
-            result.verdict = "Yes";
-            result.detail = "genus " + std::to_string(analysis.Genus());
-        }
-        else
-        {
-            result.verdict = "No";
-            result.detail = analysis.Failure();
-        }
+        const MeshAnalysis m(readMesh(path));
+        if (m.manifold()) { r.verdict = "Yes"; r.detail = "genus " + to_string(m.genus()); }
+        else { r.verdict = "No"; r.detail = m.why(); }
     }
-    catch (const std::exception &error)
+    catch (const exception &err)
     {
-        result.verdict = "Error";
-        result.detail = error.what();
+        r.verdict = "Error";
+        r.detail = err.what();
     }
-    return result;
+    return r;
 }
 
 } // namespace
 
 int main(int argc, char **argv)
 {
-    if (argc == 2 && (std::string(argv[1]) == "--help" || std::string(argv[1]) == "-h"))
+    if (argc == 2 && (string(argv[1]) == "--help" || string(argv[1]) == "-h"))
     {
-        Usage(std::cout);
+        usage(cout);
         return 0;
     }
-    if (argc < 2)
-    {
-        Usage(std::cerr);
-        return 1;
-    }
+    if (argc < 2) { usage(cerr); return 1; }
 
-    const std::vector<std::string> paths = CollectInputFiles(argc, argv);
+    const vector<string> paths = collect(argc, argv);
     if (paths.empty())
     {
-        std::cerr << "mesh_test: no .tri, .face or .diredge files found\n";
+        cerr << "mesh_analysis: no .tri, .face or .diredge files found\n";
         return 1;
     }
 
-    std::ostringstream report;
+    ostringstream report;
     report << "Model\tManifold\tDetail\n";
-    for (const std::string &path : paths)
+    for (const string &path : paths)
     {
-        const Result result = Analyse(path);
-        report << FileName(path) << '\t' << result.verdict << '\t' << result.detail << '\n';
+        const Result r = analyse(path);
+        report << fileName(path) << '\t' << r.verdict << '\t' << r.detail << '\n';
     }
 
-    std::ofstream output(ReportFileName);
-    if (!output)
+    ofstream out(reportName);
+    if (!out)
     {
-        std::cerr << "mesh_test: cannot write " << ReportFileName << '\n';
+        cerr << "mesh_analysis: cannot write " << reportName << '\n';
         return 1;
     }
-    output << report.str();
-    output.close();
-    if (!output)
+    out << report.str();
+    out.close();
+    if (!out)
     {
-        std::cerr << "mesh_test: cannot finish writing " << ReportFileName << '\n';
+        cerr << "mesh_analysis: cannot finish writing " << reportName << '\n';
         return 1;
     }
-    std::cout << report.str();
+    cout << report.str();
     return 0;
 }

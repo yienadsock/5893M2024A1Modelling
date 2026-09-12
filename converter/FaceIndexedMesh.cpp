@@ -24,7 +24,7 @@ FaceIndexedMesh FaceIndexedMesh::ReadTriangleSoup(std::istream &input)
             Vertex vertex;
             if (corner == 0)
             {
-                // A clean end of file is only valid before a new triangle starts.
+                // make sure clean end of file is only valid before a new triangle starts.
                 if (!(input >> vertex[0]))
                 {
                     if (input.eof()) return mesh;
