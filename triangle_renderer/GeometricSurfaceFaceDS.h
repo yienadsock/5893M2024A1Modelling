@@ -46,6 +46,7 @@ class GeometricSurfaceFaceDS
 	void Render();
 
 	private:
+	// .face/.diredge reader and the shared centring and scale step.
 	bool ReadFileIndexed(char *fileName);
 	void PrepareForViewing();
 	}; // class GeometricSurfaceFaceDS

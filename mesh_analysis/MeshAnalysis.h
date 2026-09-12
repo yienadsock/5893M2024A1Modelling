@@ -8,8 +8,7 @@
 
 class DirectedEdgeMesh;
 
-// Tasks II and III of the assignment: decides whether a mesh is a closed
-// manifold surface and, if it is, finds the genus from the Euler formula.
+// Tasks II and III: closed-manifold test, then genus from the Euler formula.
 class MeshAnalysis
 {
 public:
@@ -22,8 +21,7 @@ public:
     std::size_t Genus() const { return surfaceGenus; }
 
 private:
-    // Both helpers read the private connectivity of DirectedEdgeMesh, which
-    // therefore declares MeshAnalysis as a friend.
+    // Both helpers read the private connectivity of their DirectedEdgeMesh argument.
     std::string FindFailure(const DirectedEdgeMesh &connectivity) const;
     std::size_t ComputeGenus(const DirectedEdgeMesh &connectivity) const;
 

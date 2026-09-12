@@ -74,8 +74,7 @@ void DirectedEdgeMesh::BuildConnectivity()
     for (const auto &entry : groups)
     {
         const auto &edges = entry.second;
-        // Exactly two reverse incidences in different faces can be paired.
-        // Larger groups, self-loops and same-face pairs remain -1.
+        // Only two reverse incidences in different faces pair up; the rest stay -1.
         if (edges.size() != 2 || edges[0] / 3 == edges[1] / 3) continue;
         const EdgeKey a = Endpoints(edges[0]), b = Endpoints(edges[1]);
         if (a[0] != a[1] && a[0] == b[1] && a[1] == b[0])

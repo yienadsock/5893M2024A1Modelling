@@ -12,8 +12,7 @@ namespace
 
 typedef std::vector<std::pair<std::size_t, std::size_t> > LinkEdges;
 
-// True when a vertex link is neither one path (boundary) nor one cycle.
-// An isolated vertex has an empty link, and a bow-tie has two separate fans.
+// True when a vertex link is neither one path (boundary) nor one cycle (bow-tie).
 bool LinkFails(const LinkEdges &edges)
 {
     if (edges.empty()) return true;
@@ -25,8 +24,7 @@ bool LinkFails(const LinkEdges &edges)
         link[edge.second].push_back(edge.first);
     }
 
-    // A manifold vertex has degree 1 or 2 everywhere, with zero ends for an
-    // interior cycle and exactly two ends for a boundary path.
+    // A manifold vertex has degree 1 or 2 everywhere, with 0 or 2 ends.
     std::size_t ends = 0;
     for (const auto &entry : link)
     {
@@ -35,8 +33,7 @@ bool LinkFails(const LinkEdges &edges)
     }
     if (ends != 0 && ends != 2) return true;
 
-    // Every link edge must be reachable from the first neighbour: two fans
-    // meeting at one vertex form a non-manifold bow-tie.
+    // Every link edge must be reachable from the first neighbour, else two fans meet.
     std::vector<std::size_t> pending(1, link.begin()->first);
     std::map<std::size_t, bool> visited;
     while (!pending.empty())
@@ -85,8 +82,7 @@ std::string MeshAnalysis::FindFailure(const DirectedEdgeMesh &connectivity) cons
 
     std::string failure;
 
-    // Task II: a closed surface pairs every directed edge with its opposite
-    // half, so the first unpaired edge identifies a hole in the mesh.
+    // Task II: an unpaired edge is a hole; a broken vertex link is a failure.
     for (std::size_t edge = 0; edge < connectivity.otherHalves.size(); ++edge)
     {
         if (connectivity.otherHalves[edge] != -1) continue;
@@ -96,8 +92,7 @@ std::string MeshAnalysis::FindFailure(const DirectedEdgeMesh &connectivity) cons
         break;
     }
 
-    // Task II: collect the link of every vertex and report the first vertex
-    // whose link is not a single path or cycle.
+    // Task II: the link of every vertex must be a single path or cycle.
     std::vector<LinkEdges> links(connectivity.mesh.VertexCount());
     for (const FaceIndexedMesh::Face &face : connectivity.mesh.Faces())
     {
@@ -120,8 +115,7 @@ std::string MeshAnalysis::FindFailure(const DirectedEdgeMesh &connectivity) cons
 
 std::size_t MeshAnalysis::ComputeGenus(const DirectedEdgeMesh &connectivity) const
 {
-    // Task III: each closed component satisfies V - E + F = 2 - 2g. Faces are
-    // grouped into components by the pairing of their directed edges.
+    // Task III: each closed component satisfies V - E + F = 2 - 2g.
     std::vector<std::size_t> parent(connectivity.mesh.FaceCount());
     for (std::size_t face = 0; face < parent.size(); ++face) parent[face] = face;
     for (std::size_t edge = 0; edge < connectivity.otherHalves.size(); ++edge)

@@ -8,10 +8,7 @@
 #include <utility>
 #include <vector>
 
-// Task V: greedy vertex decimation ordered by the smallest Gaussian
-// curvature. Every removal re-triangulates the 1-ring and checks the
-// Eulerian condition so the surface stays a closed manifold. The mean
-// curvature is computed alongside for completeness.
+// Task V: greedy vertex decimation by Gaussian curvature, preserving V - E + F.
 class MeshSimplifier
 {
 public:
@@ -30,8 +27,7 @@ private:
     std::vector<std::size_t> Ring(std::size_t vertex) const;
     // Mean and Gaussian curvature from the current incident faces.
     void UpdateCurvature(std::size_t vertex);
-    // Tries to remove a vertex; on success mutates the mesh and returns the
-    // old 1-ring so the caller can refresh the curvatures.
+    // Removes a vertex, returning the old 1-ring so the caller refreshes it.
     bool TryRemove(std::size_t vertex, std::vector<std::size_t> &ring);
 
     FaceIndexedMesh simplified;

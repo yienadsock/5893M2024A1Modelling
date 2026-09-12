@@ -24,6 +24,7 @@ int main(int argc, char **argv)
 	// check the args to make sure there's an input file
 	if (argc == 2)
 		{ // two parameters - read a file
+		// ReadFile picks the .tri, .face or .diredge reader from the extension.
 		if (!surface.ReadFile(argv[1]))
 			{ // surface read failed 
 			printf("Read failed for file %s\n", argv[1]);

@@ -51,8 +51,7 @@ MeshSimplifier::MeshSimplifier(const FaceIndexedMesh &mesh, double keepRatio)
     const std::size_t targetVertices = std::max<std::size_t>(
         4, static_cast<std::size_t>(std::ceil(mesh.VertexCount() * keepRatio)));
 
-    // Face adjacency: each undirected edge of a closed manifold meets exactly
-    // two faces, and every vertex keeps the list of its incident faces.
+    // Edge-face adjacency and per-vertex incident faces, for a closed manifold.
     incident.assign(simplified.VertexCount(), std::vector<std::size_t>());
     for (std::size_t face = 0; face < simplified.FaceCount(); ++face)
     {
@@ -107,8 +106,7 @@ MeshSimplifier::MeshSimplifier(const FaceIndexedMesh &mesh, double keepRatio)
         --activeVertices;
         activeFaces -= 2;
 
-        // Eulerian condition: removing one vertex, three edges and two faces
-        // must leave V - E + F unchanged.
+        // Eulerian check: removing a vertex, three edges and two faces keeps V - E + F.
         const long long after = static_cast<long long>(activeVertices)
             - 3 * static_cast<long long>(activeFaces) / 2 + activeFaces;
         if (after != characteristic)
@@ -241,14 +239,12 @@ void MeshSimplifier::UpdateCurvature(std::size_t vertex)
         const std::size_t b = corners[(corner + 2) % 3];
         angles += Angle(vertex, corners);
         mixedArea += FaceArea(face) / 3.0;
-        // The cotangent opposite each edge (vertex, neighbour) sits at the
-        // third corner of the face.
+        // The cotangent opposite edge (vertex, neighbour) sits at the third corner.
         weight[a] += Cotangent(b, vertex, a);
         weight[b] += Cotangent(a, vertex, b);
     }
 
-    // Gaussian curvature from the angle defect, and the mean curvature
-    // normal from the discrete Laplace-Beltrami operator.
+    // Gaussian curvature from the angle defect; mean curvature from Laplace-Beltrami.
     gaussian[vertex] = (2.0 * kPi - angles) / mixedArea;
     double hx = 0.0, hy = 0.0, hz = 0.0;
     for (const auto &entry : weight)
@@ -278,9 +274,7 @@ bool MeshSimplifier::TryRemove(std::size_t vertex, std::vector<std::size_t> &rin
     const double wx = r2[0] - r0[0], wy = r2[1] - r0[1], wz = r2[2] - r0[2];
     const double nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
 
-    // Try every ring vertex as the fan centre; prefer the fan whose thinnest
-    // triangle is largest. A valid fan uses only new diagonals, keeps the
-    // same winding and never creates a degenerate triangle.
+    // Fan from the ring vertex whose thinnest triangle is largest; new diagonals only.
     double bestMinimum = 0.0;
     std::size_t bestCentre = size;
     for (std::size_t centre = 0; centre < size; ++centre)
@@ -311,8 +305,7 @@ bool MeshSimplifier::TryRemove(std::size_t vertex, std::vector<std::size_t> &rin
         if (!valid) continue;
         if (size == 3)
         {
-            // The single fan triangle must not duplicate the face opposite
-            // the vertex: that would close the surface with a double cover.
+            // The fan triangle must not duplicate the opposite face (double cover).
             const std::size_t a = ring[(centre + 1) % 3];
             const std::size_t b = ring[(centre + 2) % 3];
             const std::map<Edge, std::pair<std::size_t, std::size_t> >::const_iterator entry =
@@ -341,8 +334,7 @@ bool MeshSimplifier::TryRemove(std::size_t vertex, std::vector<std::size_t> &rin
     }
     if (bestCentre == size) return false;
 
-    // Commit: delete the incident faces, append the fan, and update the edge
-    // map and per-vertex incidence lists.
+    // Commit: drop the incident faces, append the fan, refresh edge and vertex data.
     const std::vector<std::size_t> removed = incident[vertex];
     const std::set<std::size_t> dead(removed.begin(), removed.end());
     for (std::size_t face : removed)

@@ -27,9 +27,8 @@ public:
     const std::vector<std::string> &HeaderLines() const { return headerLines; }
 
 private:
-    // mesh_edit/MeshRepair.cpp removes debris and appends the hole fans.
+    // Edited in place by MeshRepair (hole fans) and MeshSimplifier (re-triangulation).
     friend class MeshRepair;
-    // mesh_edit/MeshSimplifier.cpp removes vertices and re-triangulates.
     friend class MeshSimplifier;
 
     std::vector<Vertex> vertices;

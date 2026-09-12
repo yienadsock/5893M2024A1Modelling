@@ -7,8 +7,7 @@
 
 class DirectedEdgeMesh;
 
-// Task IV: removes debris (detached components, fin slivers, flaps and
-// pinches) and then closes every hole with a fan at its centre of gravity.
+// Task IV: removes debris (components, fins, flaps, pinches), then closes holes.
 class MeshRepair
 {
 public:
@@ -19,8 +18,7 @@ public:
     const FaceIndexedMesh &Mesh() const { return repaired; }
 
 private:
-    // Deletes every face that stops the boundary from being a set of simple
-    // loops; returns true when at least one face was removed.
+    // Deletes faces that stop the boundary being simple loops; true if any went.
     bool RemoveBadFaces();
     // Closes every simple hole; returns true when at least one was filled.
     bool FillHoles();

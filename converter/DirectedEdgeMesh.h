@@ -21,9 +21,8 @@ public:
     { return std::count(otherHalves.begin(), otherHalves.end(), -1); }
 
 private:
-    // Tasks II and III analyse this connectivity in mesh_analysis/MeshAnalysis.cpp.
+    // Read by MeshAnalysis (Tasks II-III) and MeshRepair (Task IV).
     friend class MeshAnalysis;
-    // Task IV walks the hole boundary loops in mesh_edit/MeshRepair.cpp.
     friend class MeshRepair;
 
     typedef std::ptrdiff_t EdgeId;

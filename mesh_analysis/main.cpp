@@ -122,8 +122,7 @@ FaceIndexedMesh ReadMesh(const std::string &path)
     if (!input) throw std::runtime_error("cannot open input file");
     if (Extension(path) == "tri") return FaceIndexedMesh::ReadTriangleSoup(input);
 
-    // .face and .diredge share their geometry records. Rebuild the Task I
-    // connectivity so every format is tested through the same data structure.
+    // .face and .diredge share their geometry records; rebuild the Task I connectivity.
     std::ostringstream geometry;
     std::string line, kind;
     while (std::getline(input, line))

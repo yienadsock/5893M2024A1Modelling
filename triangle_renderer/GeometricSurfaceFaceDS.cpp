@@ -36,8 +36,7 @@
 
 namespace
 {
-// Consume a whole whitespace-delimited value, so malformed tokens cannot
-// silently become several coordinates or indices.
+// Read one whole token, so malformed numbers cannot split into several values.
 template <typename T>
 bool ReadValue(std::istream &input, T &value)
 {
@@ -84,11 +83,13 @@ bool GeometricSurfaceFaceDS::ReadFileTriangleSoup(char *fileName)
 	if (!inFile || !ReadValue(inFile, nTriangles) || nTriangles < 0)
 		return false;
 	std::vector<Cartesian3> triangles;
+	// Reject a declared count that would overflow the coordinate list.
 	if (static_cast<std::size_t>(nTriangles) > triangles.max_size() / 3)
 		return false;
 	for (std::size_t i = 0; i < static_cast<std::size_t>(nTriangles) * 3; ++i)
 		{
 		Cartesian3 vertex;
+		// Every coordinate must parse and be finite.
 		if (!ReadValue(inFile, vertex.x) || !ReadValue(inFile, vertex.y)
 			|| !ReadValue(inFile, vertex.z) || !std::isfinite(vertex.x)
 			|| !std::isfinite(vertex.y) || !std::isfinite(vertex.z)) return false;
@@ -99,8 +100,7 @@ bool GeometricSurfaceFaceDS::ReadFileTriangleSoup(char *fileName)
 	return true;
 	} // GeometricSurfaceFaceDS::ReadFileTriangleSoup()
 
-// Only Vertex and Face records are needed for drawing. Directed-edge records
-// are intentionally skipped: this adapter displays geometry, not connectivity.
+// Vertex and Face records carry the geometry; directed-edge records are skipped.
 bool GeometricSurfaceFaceDS::ReadFileIndexed(char *fileName)
 	{
 	std::ifstream inFile(fileName);
@@ -120,6 +120,7 @@ bool GeometricSurfaceFaceDS::ReadFileIndexed(char *fileName)
 		if (kind == "Vertex")
 			{
 			Cartesian3 vertex;
+			// Vertices come first, with the next id and finite coordinates.
 			if (faceCount != 0 || id != indexedVertices.size()
 				|| !ReadValue(record, vertex.x) || !ReadValue(record, vertex.y)
 				|| !ReadValue(record, vertex.z) || !std::isfinite(vertex.x)
@@ -139,6 +140,7 @@ bool GeometricSurfaceFaceDS::ReadFileIndexed(char *fileName)
 			++faceCount;
 			}
 		else return false;
+		// No trailing junk after the expected fields.
 		if (record >> extra) return false;
 		}
 	if (inFile.bad()) return false;
@@ -147,8 +149,7 @@ bool GeometricSurfaceFaceDS::ReadFileIndexed(char *fileName)
 	return true;
 	}
 
-// Use the same expanded triangle vertices for every format, so shared vertices
-// have the same weighting when centering and the same viewing scale as .tri.
+// Centre and scale on the expanded triangles, so every format views the same.
 void GeometricSurfaceFaceDS::PrepareForViewing()
 	{
 	midPoint = Cartesian3(0.0, 0.0, 0.0);

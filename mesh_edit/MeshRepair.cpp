@@ -58,8 +58,7 @@ void Join(std::vector<std::size_t> &parent, std::size_t first, std::size_t secon
     if (firstRoot != secondRoot) parent[secondRoot] = firstRoot;
 }
 
-// One record per face corner. The directed edges of face (a,b,c) are a->b,
-// b->c and c->a, matching the Appendix 2 convention.
+// One record per face corner; face (a,b,c) gives directed edges a->b, b->c, c->a.
 std::map<Undirected, std::vector<Incidence> > Incidences(const FaceIndexedMesh &mesh)
 {
     std::map<Undirected, std::vector<Incidence> > groups;
@@ -98,8 +97,7 @@ bool MeshRepair::RemoveBadFaces()
     std::vector<char> keep(repaired.FaceCount(), 1);
     const std::map<Undirected, std::vector<Incidence> > groups = Incidences(repaired);
 
-    // Detached debris: only the largest edge-connected component survives,
-    // because the handout guarantees a single component.
+    // Detached debris: keep only the largest edge-connected component.
     {
         std::vector<std::size_t> parent(repaired.FaceCount());
         for (std::size_t index = 0; index < parent.size(); ++index) parent[index] = index;
@@ -116,8 +114,7 @@ bool MeshRepair::RemoveBadFaces()
             if (Root(parent, face) != largestRoot) keep[face] = 0;
     }
 
-    // Fins: where more than two faces share an edge, keep the largest face
-    // in each direction and drop the remaining slivers.
+    // Fins: over-full edges keep the largest face per direction; slivers go.
     for (const auto &entry : groups)
     {
         if (entry.second.size() <= 2) continue;
@@ -134,8 +131,7 @@ bool MeshRepair::RemoveBadFaces()
                 keep[record.face] = 0;
     }
 
-    // Flaps: a face on a manifold boundary has at most one unpaired edge,
-    // so faces with two or more hang into the hole and are removed.
+    // Flaps: a face with two or more unpaired edges hangs into the hole.
     {
         std::vector<unsigned char> unpaired(repaired.FaceCount(), 0);
         for (const auto &entry : groups)
@@ -155,9 +151,7 @@ bool MeshRepair::RemoveBadFaces()
             if (unpaired[face] >= 2) keep[face] = 0;
     }
 
-    // Pinches: at a vertex with several fans of faces, only the largest fan
-    // survives. Splitting the vertex is impossible in the .tri format, which
-    // welds coincident vertices together again on the next read.
+    // Pinches: keep the largest fan per vertex (.tri re-welds split vertices).
     {
         std::vector<std::vector<std::size_t> > incident(repaired.VertexCount());
         for (std::size_t face = 0; face < repaired.FaceCount(); ++face)
@@ -233,8 +227,7 @@ bool MeshRepair::FillHoles()
     {
         if (connectivity.otherHalves[start] != -1 || used[start] != 0) continue;
 
-        // Walk the hole: rotate around the head vertex, crossing every paired
-        // edge, until the next boundary edge of the same loop appears.
+        // Walk the hole: rotate around the head, crossing paired edges, to the start.
         std::vector<std::size_t> loop;
         std::size_t edge = start;
         do
@@ -265,8 +258,7 @@ bool MeshRepair::FillHoles()
         if (loop.size() < 3 || heads.size() != loop.size() || faces.size() != loop.size())
             continue;
 
-        // One vertex at the centre of gravity, then a fan that pairs with
-        // the boundary edges.
+        // One vertex at the centre of gravity, fanned to pair the boundary edges.
         FaceIndexedMesh::Vertex centre = {};
         for (std::size_t item : loop)
         {

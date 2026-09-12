@@ -14,10 +14,7 @@ FaceIndexedMesh FaceIndexedMesh::ReadTriangleSoup(std::istream &input)
     if (!(input >> declaredTriangles) || declaredTriangles < 0)
         throw std::runtime_error("Cannot read triangle count.");
 
-    // The coordinates present in the file are authoritative: hamish.tri
-    // declares fewer triangles than it stores, and other handout files agree
-    // with their header, so the declared count is not used as a limit.
-    // The map finds shared coordinates; IDs follow first occurrence in the file.
+    // Stored triangles are authoritative: hamish.tri holds more than its header claims.
     std::map<Vertex, std::size_t> vertexIds;
     for (;;)
     {
